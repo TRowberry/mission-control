@@ -1,0 +1,78 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Environment files (NEVER commit these - recursive)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Database
+*.db
+*.db-journal
+prisma/dev.db
+
+# Credentials/secrets
+login.json
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+*.tar.gz
+
+# Script state files (contain runtime data)
+scripts/listener-state.json
+scripts/mc-listener.env
+scripts/*.service
+
+# QA test artifacts  
+qa/screenshots/
+qa/baselines/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Test media files
+*.mp3
+*.mp4
+
+# Personal/workspace files (should never be in this repo)
+MEMORY.md
+IDENTITY.md
+SOUL.md
+USER.md
+AGENTS.md
+HEARTBEAT.md
+TOOLS.md
+ROADMAP.md
+BOOTSTRAP.md
+memory/
+kanban/

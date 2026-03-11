@@ -1,0 +1,21 @@
+{
+  "name": "mc-qa-tests",
+  "version": "1.0.0",
+  "description": "Mission Control QA Test Suite",
+  "main": "run-all-tests.js",
+  "scripts": {
+    "test:api": "node smoke-tests.js",
+    "test:browser": "node browser-tests.js",
+    "test:visual": "node visual-regression.js compare",
+    "test:all": "node run-all-tests.js",
+    "test:report": "node run-tests.js",
+    "baseline": "node visual-regression.js baseline",
+    "postinstall": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "pngjs": "^7.0.0"
+  },
+  "author": "QA Agent",
+  "license": "MIT"
+}

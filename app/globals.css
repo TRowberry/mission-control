@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #36393F;
+  --foreground: #DCDDDE;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #202225;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2F3136;
+}
+
+/* Discord-style selection */
+::selection {
+  background: rgba(88, 101, 242, 0.3);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: ease;
+  transition-duration: 150ms;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #5865F2;
+  outline-offset: 2px;
+}
+
+/* Button base */
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-hover;
+}
+
+.btn-secondary {
+  @apply bg-secondary text-white hover:bg-secondary-hover;
+}
+
+.btn-danger {
+  @apply bg-danger text-white hover:opacity-90;
+}
+
+.btn-ghost {
+  @apply text-foreground hover:bg-white/10;
+}
+
+/* Input base */
+.input {
+  @apply w-full rounded-md bg-[#202225] px-3 py-2 text-sm text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary;
+}
+
+/* Card base */
+.card {
+  @apply rounded-lg bg-[#2F3136] p-4;
+}
+
+/* Channel list item */
+.channel-item {
+  @apply flex items-center gap-2 rounded px-2 py-1.5 text-gray-400 hover:bg-[#3C3F45] hover:text-gray-200 cursor-pointer;
+}
+
+.channel-item.active {
+  @apply bg-[#3C3F45] text-white;
+}
+
+/* Message styles */
+.message {
+  @apply flex gap-4 px-4 py-1 hover:bg-[#32353B];
+}
+
+.message-content {
+  @apply text-sm leading-relaxed break-words;
+}
+
+/* Kanban card */
+.task-card {
+  @apply rounded-lg bg-[#2F3136] p-3 shadow-sm hover:bg-[#34373C] cursor-grab active:cursor-grabbing;
+}
+
+/* Priority badges */
+.priority-low { @apply bg-success/20 text-success; }
+.priority-medium { @apply bg-warning/20 text-warning; }
+.priority-high { @apply bg-[#F47B67]/20 text-[#F47B67]; }
+.priority-urgent { @apply bg-danger/20 text-danger; }

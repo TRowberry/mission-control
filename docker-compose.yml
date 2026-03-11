@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: mission
+      POSTGRES_PASSWORD: mission123
+      POSTGRES_DB: mission_control
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mission -d mission_control"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    links:
+      - db
+    environment:
+      DATABASE_URL: postgresql://mission:mission123@10.0.0.206:5432/mission_control
+      JWT_SECRET: mission-control-super-secret-key-change-me
+      NEXT_PUBLIC_APP_URL: http://10.0.0.206:3000
+      OPENCLAW_GATEWAY_URL: http://10.0.0.108:18789
+      OPENCLAW_GATEWAY_TOKEN: "111111"
+      PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
+    volumes:
+      - uploads_data:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploads_data:
