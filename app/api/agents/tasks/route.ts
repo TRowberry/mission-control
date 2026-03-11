@@ -208,6 +208,7 @@ export async function GET(request: NextRequest) {
  *   - columnId: move to different column
  *   - completed: mark as completed (true) or uncompleted (false)
  *   - stateId: change workflow state (string or null)
+ *   - subtasks: array of subtask updates [{id, completed}]
  * 
  * Headers:
  *   - X-API-Key: Agent's API key
@@ -233,7 +234,8 @@ export async function PATCH(request: NextRequest) {
       estimate,
       columnId, 
       completed, 
-      stateId 
+      stateId,
+      subtasks,
     } = body;
 
     if (!taskId) {
@@ -251,6 +253,30 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Validate subtasks array if provided
+    if (subtasks !== undefined) {
+      if (!Array.isArray(subtasks)) {
+        return NextResponse.json(
+          { error: 'subtasks must be an array' },
+          { status: 400 }
+        );
+      }
+      for (const subtask of subtasks) {
+        if (!subtask.id) {
+          return NextResponse.json(
+            { error: 'Each subtask must have an id' },
+            { status: 400 }
+          );
+        }
+        if (typeof subtask.completed !== 'boolean') {
+          return NextResponse.json(
+            { error: 'Each subtask must have a boolean completed field' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Get existing task and verify agent is the assignee
     const existingTask = await prisma.task.findUnique({
       where: { id: taskId },
@@ -260,6 +286,11 @@ export async function PATCH(request: NextRequest) {
             id: true,
             name: true,
             projectId: true,
+          },
+        },
+        subtasks: {
+          select: {
+            id: true,
           },
         },
       },
@@ -402,6 +433,43 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
+    // Handle subtask updates
+    let subtasksUpdated = 0;
+    if (subtasks && subtasks.length > 0) {
+      const existingSubtaskIds = new Set(existingTask.subtasks.map(s => s.id));
+      
+      for (const subtaskUpdate of subtasks) {
+        // Validate the subtask belongs to this task
+        if (!existingSubtaskIds.has(subtaskUpdate.id)) {
+          return NextResponse.json(
+            { error: `Subtask ${subtaskUpdate.id} does not belong to this task` },
+            { status: 400 }
+          );
+        }
+        
+        // Update the subtask
+        await prisma.subtask.update({
+          where: { id: subtaskUpdate.id },
+          data: { completed: subtaskUpdate.completed },
+        });
+        subtasksUpdated++;
+      }
+    }
+
+    // Refetch subtasks after updates
+    const finalSubtasks = subtasksUpdated > 0 
+      ? await prisma.subtask.findMany({
+          where: { taskId },
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            completed: true,
+            position: true,
+          },
+        })
+      : updatedTask.subtasks;
+
     // Log activity
     try {
       const activityData: any = {
@@ -430,6 +498,10 @@ export async function PATCH(request: NextRequest) {
         activityData.dueDateUpdated = true;
       }
 
+      if (subtasksUpdated > 0) {
+        activityData.subtasksUpdated = subtasksUpdated;
+      }
+
       await prisma.activity.create({
         data: {
           type: columnId && columnId !== existingTask.columnId ? 'task_moved' : 'task_updated',
@@ -443,7 +515,7 @@ export async function PATCH(request: NextRequest) {
       console.error('[Agent Tasks] Failed to log activity:', err);
     }
 
-    console.log(`[Agent Tasks] Agent ${agent.username} updated task ${taskId}`);
+    console.log(`[Agent Tasks] Agent ${agent.username} updated task ${taskId}${subtasksUpdated > 0 ? ` (${subtasksUpdated} subtasks)` : ''}`);
 
     return NextResponse.json({
       success: true,
@@ -460,9 +532,10 @@ export async function PATCH(request: NextRequest) {
         columnName: updatedTask.column.name,
         projectId: updatedTask.column.project.id,
         projectName: updatedTask.column.project.name,
-        subtasks: updatedTask.subtasks,
+        subtasks: finalSubtasks,
         state: updatedTask.state,
       },
+      subtasksUpdated,
     });
   } catch (error) {
     console.error('[Agent Tasks] Error updating task:', error);
