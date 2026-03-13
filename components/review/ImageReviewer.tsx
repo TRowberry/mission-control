@@ -146,8 +146,9 @@ export function ImageReviewer({
   const [mounted, setMounted] = useState(false);
   
   // Rectangle/Circle/Arrow/Freehand drawing state
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+  // Using refs instead of state to avoid async state update issues in event handlers
+  const isDrawingRef = useRef(false);
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null);
   const currentRectRef = useRef<fabric.Rect | null>(null);
   const currentEllipseRef = useRef<fabric.Ellipse | null>(null);
   const currentArrowRef = useRef<fabric.Group | null>(null);
@@ -436,8 +437,8 @@ export function ImageReviewer({
       if (isAddingAnnotation) return;
       
       const pointer = canvas.getViewportPoint(opt.e);
-      setIsDrawing(true);
-      setDrawStart({ x: pointer.x, y: pointer.y });
+      isDrawingRef.current = true;
+      drawStartRef.current = { x: pointer.x, y: pointer.y };
 
       // Parse color for fill with alpha
       const hexToRgba = (hex: string, alpha: number) => {
@@ -464,24 +465,24 @@ export function ImageReviewer({
     };
 
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentRectRef.current) return;
+      if (!isDrawingRef.current || !drawStartRef.current || !currentRectRef.current) return;
 
       const pointer = canvas.getViewportPoint(opt.e);
       const rect = currentRectRef.current;
 
-      const left = Math.min(drawStart.x, pointer.x);
-      const top = Math.min(drawStart.y, pointer.y);
-      const width = Math.abs(pointer.x - drawStart.x);
-      const height = Math.abs(pointer.y - drawStart.y);
+      const left = Math.min(drawStartRef.current.x, pointer.x);
+      const top = Math.min(drawStartRef.current.y, pointer.y);
+      const width = Math.abs(pointer.x - drawStartRef.current.x);
+      const height = Math.abs(pointer.y - drawStartRef.current.y);
 
       rect.set({ left, top, width, height });
       canvas.renderAll();
     };
 
     const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentRectRef.current || !imageDimensions) {
-        setIsDrawing(false);
-        setDrawStart(null);
+      if (!isDrawingRef.current || !drawStartRef.current || !currentRectRef.current || !imageDimensions) {
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -493,8 +494,8 @@ export function ImageReviewer({
       if (width < 10 || height < 10) {
         canvas.remove(rect);
         currentRectRef.current = null;
-        setIsDrawing(false);
-        setDrawStart(null);
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -538,8 +539,8 @@ export function ImageReviewer({
       });
       canvas.renderAll();
 
-      setIsDrawing(false);
-      setDrawStart(null);
+      isDrawingRef.current = false;
+      drawStartRef.current = null;
     };
 
     canvas.on('mouse:down', handleMouseDown);
@@ -551,7 +552,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, isDrawing, drawStart, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
 
   // Handle canvas mouse events for circle/ellipse drawing
   useEffect(() => {
@@ -562,8 +563,8 @@ export function ImageReviewer({
       if (isAddingAnnotation) return;
       
       const pointer = canvas.getViewportPoint(opt.e);
-      setIsDrawing(true);
-      setDrawStart({ x: pointer.x, y: pointer.y });
+      isDrawingRef.current = true;
+      drawStartRef.current = { x: pointer.x, y: pointer.y };
 
       // Parse color for fill with alpha
       const hexToRgba = (hex: string, alpha: number) => {
@@ -590,16 +591,16 @@ export function ImageReviewer({
     };
 
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentEllipseRef.current) return;
+      if (!isDrawingRef.current || !drawStartRef.current || !currentEllipseRef.current) return;
 
       const pointer = canvas.getViewportPoint(opt.e);
       const ellipse = currentEllipseRef.current;
 
       // Calculate bounding box
-      const left = Math.min(drawStart.x, pointer.x);
-      const top = Math.min(drawStart.y, pointer.y);
-      const width = Math.abs(pointer.x - drawStart.x);
-      const height = Math.abs(pointer.y - drawStart.y);
+      const left = Math.min(drawStartRef.current.x, pointer.x);
+      const top = Math.min(drawStartRef.current.y, pointer.y);
+      const width = Math.abs(pointer.x - drawStartRef.current.x);
+      const height = Math.abs(pointer.y - drawStartRef.current.y);
 
       // Set ellipse position and radii
       ellipse.set({
@@ -612,9 +613,9 @@ export function ImageReviewer({
     };
 
     const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentEllipseRef.current || !imageDimensions) {
-        setIsDrawing(false);
-        setDrawStart(null);
+      if (!isDrawingRef.current || !drawStartRef.current || !currentEllipseRef.current || !imageDimensions) {
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -628,8 +629,8 @@ export function ImageReviewer({
       if (width < 10 || height < 10) {
         canvas.remove(ellipse);
         currentEllipseRef.current = null;
-        setIsDrawing(false);
-        setDrawStart(null);
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -673,8 +674,8 @@ export function ImageReviewer({
       });
       canvas.renderAll();
 
-      setIsDrawing(false);
-      setDrawStart(null);
+      isDrawingRef.current = false;
+      drawStartRef.current = null;
     };
 
     canvas.on('mouse:down', handleMouseDown);
@@ -686,7 +687,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, isDrawing, drawStart, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
 
   // Handle canvas mouse events for arrow drawing
   useEffect(() => {
@@ -735,8 +736,8 @@ export function ImageReviewer({
       if (isAddingAnnotation) return;
       
       const pointer = canvas.getViewportPoint(opt.e);
-      setIsDrawing(true);
-      setDrawStart({ x: pointer.x, y: pointer.y });
+      isDrawingRef.current = true;
+      drawStartRef.current = { x: pointer.x, y: pointer.y };
 
       // Create initial arrow (will be a dot initially)
       const arrow = createArrowGroup(pointer.x, pointer.y, pointer.x, pointer.y, selectedColor, 2);
@@ -745,42 +746,42 @@ export function ImageReviewer({
     };
 
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentArrowRef.current) return;
+      if (!isDrawingRef.current || !drawStartRef.current || !currentArrowRef.current) return;
 
       const pointer = canvas.getViewportPoint(opt.e);
       
       // Remove old arrow and create new one with updated end point
       canvas.remove(currentArrowRef.current);
-      const arrow = createArrowGroup(drawStart.x, drawStart.y, pointer.x, pointer.y, selectedColor, 2);
+      const arrow = createArrowGroup(drawStartRef.current.x, drawStartRef.current.y, pointer.x, pointer.y, selectedColor, 2);
       currentArrowRef.current = arrow;
       canvas.add(arrow);
       canvas.renderAll();
     };
 
     const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !drawStart || !currentArrowRef.current || !imageDimensions) {
-        setIsDrawing(false);
-        setDrawStart(null);
+      if (!isDrawingRef.current || !drawStartRef.current || !currentArrowRef.current || !imageDimensions) {
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
       const pointer = canvas.getViewportPoint(opt.e);
       const length = Math.sqrt(
-        Math.pow(pointer.x - drawStart.x, 2) + Math.pow(pointer.y - drawStart.y, 2)
+        Math.pow(pointer.x - drawStartRef.current.x, 2) + Math.pow(pointer.y - drawStartRef.current.y, 2)
       );
 
       // Minimum length check (at least 20 pixels)
       if (length < 20) {
         canvas.remove(currentArrowRef.current);
         currentArrowRef.current = null;
-        setIsDrawing(false);
-        setDrawStart(null);
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
       // Convert to percentages
-      const startXPercent = (drawStart.x / imageDimensions.width) * 100;
-      const startYPercent = (drawStart.y / imageDimensions.height) * 100;
+      const startXPercent = (drawStartRef.current.x / imageDimensions.width) * 100;
+      const startYPercent = (drawStartRef.current.y / imageDimensions.height) * 100;
       const endXPercent = (pointer.x / imageDimensions.width) * 100;
       const endYPercent = (pointer.y / imageDimensions.height) * 100;
 
@@ -812,13 +813,13 @@ export function ImageReviewer({
       
       // Update arrow style to indicate pending
       canvas.remove(currentArrowRef.current);
-      const pendingArrow = createArrowGroup(drawStart.x, drawStart.y, pointer.x, pointer.y, '#3B82F6', 2);
+      const pendingArrow = createArrowGroup(drawStartRef.current.x, drawStartRef.current.y, pointer.x, pointer.y, '#3B82F6', 2);
       currentArrowRef.current = pendingArrow;
       canvas.add(pendingArrow);
       canvas.renderAll();
 
-      setIsDrawing(false);
-      setDrawStart(null);
+      isDrawingRef.current = false;
+      drawStartRef.current = null;
     };
 
     canvas.on('mouse:down', handleMouseDown);
@@ -830,7 +831,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, isDrawing, drawStart, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
 
   // Handle canvas mouse events for freehand drawing
   useEffect(() => {
@@ -841,8 +842,8 @@ export function ImageReviewer({
       if (isAddingAnnotation) return;
       
       const pointer = canvas.getViewportPoint(opt.e);
-      setIsDrawing(true);
-      setDrawStart({ x: pointer.x, y: pointer.y });
+      isDrawingRef.current = true;
+      drawStartRef.current = { x: pointer.x, y: pointer.y };
       
       // Initialize points array with first point (in pixels, will convert later)
       freehandPointsRef.current = [{ x: pointer.x, y: pointer.y }];
@@ -863,7 +864,7 @@ export function ImageReviewer({
     };
 
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawing || !currentFreehandRef.current) return;
+      if (!isDrawingRef.current || !currentFreehandRef.current) return;
 
       const pointer = canvas.getViewportPoint(opt.e);
       
@@ -894,9 +895,9 @@ export function ImageReviewer({
     };
 
     const handleMouseUp = () => {
-      if (!isDrawing || !currentFreehandRef.current || !imageDimensions) {
-        setIsDrawing(false);
-        setDrawStart(null);
+      if (!isDrawingRef.current || !currentFreehandRef.current || !imageDimensions) {
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -907,8 +908,8 @@ export function ImageReviewer({
         canvas.remove(currentFreehandRef.current);
         currentFreehandRef.current = null;
         freehandPointsRef.current = [];
-        setIsDrawing(false);
-        setDrawStart(null);
+        isDrawingRef.current = false;
+        drawStartRef.current = null;
         return;
       }
 
@@ -977,8 +978,8 @@ export function ImageReviewer({
       canvas.add(pendingPath);
       canvas.renderAll();
 
-      setIsDrawing(false);
-      setDrawStart(null);
+      isDrawingRef.current = false;
+      drawStartRef.current = null;
     };
 
     canvas.on('mouse:down', handleMouseDown);
@@ -990,7 +991,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, isDrawing, drawStart, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
 
   // Handle pin click (existing behavior)
   const handleImageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
