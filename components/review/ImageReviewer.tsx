@@ -144,6 +144,8 @@ export function ImageReviewer({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [mounted, setMounted] = useState(false);
+  // Track canvas instance changes to trigger re-attachment of event handlers
+  const [canvasReady, setCanvasReady] = useState(false);
   
   // Rectangle/Circle/Arrow/Freehand drawing state
   // Using refs instead of state to avoid async state update issues in event handlers
@@ -162,8 +164,10 @@ export function ImageReviewer({
 
   // Initialize Fabric.js canvas
   useEffect(() => {
+    console.log('[Fabric] Init check:', { canvasRef: !!canvasRef.current, imageLoaded, imageDimensions: !!imageDimensions });
     if (!canvasRef.current || !imageLoaded || !imageDimensions) return;
 
+    console.log('[Fabric] Creating canvas...');
     const canvas = new fabric.Canvas(canvasRef.current, {
       selection: false,
       renderOnAddRemove: true,
@@ -174,13 +178,42 @@ export function ImageReviewer({
       height: imageDimensions.height,
     });
 
+    // Set z-index on Fabric.js wrapper so it's above pins (z-10/z-20)
+    const wrapperEl = canvas.wrapperEl;
+    if (wrapperEl) {
+      wrapperEl.style.zIndex = '30';
+      wrapperEl.style.position = 'absolute';
+      wrapperEl.style.top = '0';
+      wrapperEl.style.left = '0';
+      console.log('[Fabric] Set wrapper z-index to 30');
+    }
+
     fabricCanvasRef.current = canvas;
+    setCanvasReady(true);
+    console.log('[Fabric] Canvas ready, canvasReady=true');
 
     return () => {
+      console.log('[Fabric] Disposing canvas, canvasReady=false');
+      setCanvasReady(false);
       canvas.dispose();
       fabricCanvasRef.current = null;
     };
   }, [imageLoaded, imageDimensions]);
+
+  // Update wrapper z-index based on current tool
+  // Pin tool: z-0 so pins can be clicked
+  // Drawing tools: z-30 so canvas captures events
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    
+    const wrapperEl = canvas.wrapperEl;
+    if (wrapperEl) {
+      const zIndex = currentTool === 'pin' ? '0' : '30';
+      wrapperEl.style.zIndex = zIndex;
+      console.log('[Fabric] Updated wrapper z-index to', zIndex, 'for tool', currentTool);
+    }
+  }, [currentTool, canvasReady]);
 
   // Draw existing annotations on canvas
   useEffect(() => {
@@ -431,12 +464,17 @@ export function ImageReviewer({
   // Handle canvas mouse events for rectangle drawing
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
+    console.log('[Rectangle] useEffect:', { canvas: !!canvas, readOnly, currentTool, canvasReady });
     if (!canvas || readOnly || currentTool !== 'rectangle') return;
 
+    console.log('[Rectangle] Attaching handlers to canvas');
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+      console.log('[Rectangle] mousedown fired!');
       if (isAddingAnnotation) return;
       
-      const pointer = canvas.getViewportPoint(opt.e);
+      // Use getScenePoint for accurate canvas coordinates (not affected by viewport transforms)
+      const pointer = opt.scenePoint;
+      console.log('[Rectangle] mousedown pointer:', pointer);
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
@@ -453,6 +491,8 @@ export function ImageReviewer({
         top: pointer.y,
         width: 0,
         height: 0,
+        originX: 'left',
+        originY: 'top',
         fill: hexToRgba(selectedColor, 0.1),
         stroke: selectedColor,
         strokeWidth: 2,
@@ -467,7 +507,7 @@ export function ImageReviewer({
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
       if (!isDrawingRef.current || !drawStartRef.current || !currentRectRef.current) return;
 
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       const rect = currentRectRef.current;
 
       const left = Math.min(drawStartRef.current.x, pointer.x);
@@ -552,7 +592,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
 
   // Handle canvas mouse events for circle/ellipse drawing
   useEffect(() => {
@@ -562,7 +602,7 @@ export function ImageReviewer({
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
       if (isAddingAnnotation) return;
       
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
@@ -579,6 +619,8 @@ export function ImageReviewer({
         top: pointer.y,
         rx: 0,
         ry: 0,
+        originX: 'left',
+        originY: 'top',
         fill: hexToRgba(selectedColor, 0.1),
         stroke: selectedColor,
         strokeWidth: 2,
@@ -593,7 +635,7 @@ export function ImageReviewer({
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
       if (!isDrawingRef.current || !drawStartRef.current || !currentEllipseRef.current) return;
 
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       const ellipse = currentEllipseRef.current;
 
       // Calculate bounding box
@@ -687,7 +729,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
 
   // Handle canvas mouse events for arrow drawing
   useEffect(() => {
@@ -735,7 +777,7 @@ export function ImageReviewer({
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
       if (isAddingAnnotation) return;
       
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
@@ -748,7 +790,7 @@ export function ImageReviewer({
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
       if (!isDrawingRef.current || !drawStartRef.current || !currentArrowRef.current) return;
 
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       
       // Remove old arrow and create new one with updated end point
       canvas.remove(currentArrowRef.current);
@@ -765,7 +807,7 @@ export function ImageReviewer({
         return;
       }
 
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       const length = Math.sqrt(
         Math.pow(pointer.x - drawStartRef.current.x, 2) + Math.pow(pointer.y - drawStartRef.current.y, 2)
       );
@@ -831,7 +873,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
 
   // Handle canvas mouse events for freehand drawing
   useEffect(() => {
@@ -841,7 +883,7 @@ export function ImageReviewer({
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
       if (isAddingAnnotation) return;
       
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
       
@@ -866,7 +908,7 @@ export function ImageReviewer({
     const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
       if (!isDrawingRef.current || !currentFreehandRef.current) return;
 
-      const pointer = canvas.getViewportPoint(opt.e);
+      const pointer = opt.scenePoint;
       
       // Add point to array
       freehandPointsRef.current.push({ x: pointer.x, y: pointer.y });
@@ -991,7 +1033,7 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor]);
+  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
 
   // Handle pin click (existing behavior)
   const handleImageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -1347,11 +1389,15 @@ export function ImageReviewer({
           draggable={false}
         />
 
-        {/* Fabric.js Canvas Overlay */}
+        {/* Fabric.js Canvas Overlay - z-index depends on tool:
+            - Pin tool: z-0 (below pins so they can be clicked)
+            - Drawing tools: z-30 (above pins to capture drawing events) */}
         {imageLoaded && imageDimensions && (
           <canvas
             ref={canvasRef}
-            className="absolute top-0 left-0 pointer-events-auto"
+            className={`absolute top-0 left-0 pointer-events-auto ${
+              currentTool === 'pin' ? 'z-0' : 'z-30'
+            }`}
             style={{
               width: imageDimensions.width,
               height: imageDimensions.height,
