@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import CreateChannelModal from '@/components/chat/CreateChannelModal';
 import ChannelSettingsModal from '@/components/chat/ChannelSettingsModal';
+import AgentSettingsModal from '@/components/agents/AgentSettingsModal';
 import { useSocket } from '@/components/providers/SocketProvider';
 
 const MIN_SIDEBAR_WIDTH = 200;
@@ -106,6 +107,9 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [projectMenuId, setProjectMenuId] = useState<string | null>(null);
+  
+  // Agent settings modal state
+  const [selectedAgent, setSelectedAgent] = useState<TeamMember | null>(null);
   
   // Sidebar resize state
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -702,9 +706,9 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
                   .map((member) => (
                     <button
                       key={member.id}
-                      onClick={() => startDM(member.id)}
+                      onClick={() => member.isAgent ? setSelectedAgent(member) : startDM(member.id)}
                       className="channel-item group w-full text-left"
-                      title={`Start DM with ${member.displayName}`}
+                      title={member.isAgent ? `Manage ${member.displayName}` : `Start DM with ${member.displayName}`}
                     >
                       <div className="relative">
                         <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0">
@@ -725,8 +729,11 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
                       </div>
                       <span className="truncate text-sm">{member.displayName}</span>
                       {member.isAgent && (
-                        <span className="ml-auto px-1 py-0.5 text-[9px] bg-primary/20 text-primary rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                          BOT
+                        <span className="ml-auto flex items-center gap-1">
+                          <span className="px-1 py-0.5 text-[9px] bg-primary/20 text-primary rounded">
+                            BOT
+                          </span>
+                          <Settings className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </span>
                       )}
                     </button>
@@ -757,6 +764,13 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
           onClose={() => setEditingChannel(null)}
           onUpdate={handleUpdateChannel}
           onDelete={handleDeleteChannel}
+        />
+      )}
+
+      {selectedAgent && (
+        <AgentSettingsModal
+          agent={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
         />
       )}
     </>

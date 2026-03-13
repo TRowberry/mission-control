@@ -55,7 +55,7 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
 
 // POST /api/review - Create review item
 export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { name, url, type, taskId, width, height, duration } = await req.json();
+  const { name, url, thumbnailUrl, type, taskId, width, height, duration } = await req.json();
 
   if (!name || !url || !type) {
     return badRequest('name, url, and type are required');
@@ -80,6 +80,7 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
     data: {
       name,
       url,
+      thumbnailUrl,
       type,
       width,
       height,

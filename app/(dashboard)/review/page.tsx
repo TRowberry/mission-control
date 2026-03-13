@@ -10,6 +10,8 @@ interface Annotation {
   type: string;
   x: number | null;
   y: number | null;
+  width?: number | null;
+  height?: number | null;
   content: string;
   resolved: boolean;
   color: string;
@@ -109,7 +111,14 @@ export default function ReviewPage() {
   }, []);
 
   // Handle annotation creation
-  const handleAnnotationCreate = useCallback(async (data: { type: string; x: number; y: number; content: string }) => {
+  const handleAnnotationCreate = useCallback(async (data: { 
+    type: string; 
+    x: number; 
+    y: number; 
+    width?: number;
+    height?: number;
+    content: string;
+  }) => {
     if (!selectedItemId) return;
 
     try {

@@ -25,6 +25,7 @@ interface ReviewItem {
   id: string;
   type: string;
   url: string;
+  thumbnailUrl?: string;
   name: string;
   status: string;
   version: number;
@@ -197,11 +198,11 @@ export function TaskReviewPanel({
                   setViewMode('review');
                 }}
               >
-                {/* Thumbnail */}
+                {/* Thumbnail - use thumbnailUrl if available, fall back to full url */}
                 <div className="aspect-video relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={item.url}
+                    src={item.thumbnailUrl || item.url}
                     alt={item.name}
                     className="w-full h-full object-cover"
                   />

@@ -21,8 +21,8 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install OpenSSL for Prisma runtime
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Install OpenSSL for Prisma and FFmpeg for thumbnail generation
+RUN apt-get update && apt-get install -y openssl ffmpeg && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 nextjs
