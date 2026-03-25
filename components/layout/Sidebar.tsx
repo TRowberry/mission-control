@@ -76,16 +76,17 @@ export default function Sidebar({ user }: SidebarProps) {
         <Settings className="w-5 h-5" />
       </Link>
 
-      <div
-        className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold cursor-pointer"
-        title={user.displayName}
+      <Link
+        href="/account"
+        className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+        title={`${user.displayName} - Account Settings`}
       >
         {user.avatar ? (
           <img src={user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
         ) : (
           user.displayName.slice(0, 2).toUpperCase()
         )}
-      </div>
+      </Link>
     </div>
   );
 }
