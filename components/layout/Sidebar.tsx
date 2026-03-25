@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Rocket, Plus, Settings, LogOut } from 'lucide-react';
+import { Rocket, Plus, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import UserMenu from './UserMenu';
 
 interface User {
   id: string;
@@ -76,17 +77,7 @@ export default function Sidebar({ user }: SidebarProps) {
         <Settings className="w-5 h-5" />
       </Link>
 
-      <Link
-        href="/account"
-        className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-        title={`${user.displayName} - Account Settings`}
-      >
-        {user.avatar ? (
-          <img src={user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
-        ) : (
-          user.displayName.slice(0, 2).toUpperCase()
-        )}
-      </Link>
+      <UserMenu user={user} />
     </div>
   );
 }
