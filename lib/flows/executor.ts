@@ -100,7 +100,8 @@ export async function executeFlow(
         nodeOutput = nodeInput;
       } else if (node.type === 'condition') {
         // Condition nodes evaluate and branch
-        const conditionResult = evaluateCondition(node.data, nodeInput);
+        const conditionConfig = node.data || (node as any).config || {};
+        const conditionResult = evaluateCondition(conditionConfig, nodeInput);
         nodeOutput = { result: conditionResult, data: nodeInput };
         
         // For conditions, we need to handle branching
@@ -133,7 +134,9 @@ export async function executeFlow(
           throw new Error(`Unknown action type: ${node.type}`);
         }
 
-        const result = await handler(node.data, nodeInput, {
+        // Node config can be in node.config or node.data depending on source
+        const nodeConfig = node.data || (node as any).config || {};
+        const result = await handler(nodeConfig, nodeInput, {
           flowId: flow.id,
           runId,
           agentId: flow.agentId,

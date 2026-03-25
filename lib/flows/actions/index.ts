@@ -34,9 +34,10 @@ export const actionHandlers: Record<string, ActionHandler> = {
   fetch: fetchAction,
   transform: transformAction,
   'post-message': postMessageAction,
-  post: postMessageAction, // alias
+  post: postMessageAction, // alias for UI
   condition: conditionAction,
   llm: llmAction,
   script: scriptAction,
   wait: waitAction,
+  delay: waitAction, // alias for UI
 };
