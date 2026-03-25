@@ -46,8 +46,23 @@ interface MentionUser {
   status: string;
 }
 
+// Draft storage helpers
+const DRAFT_KEY_PREFIX = 'mc-draft-';
+function getDraft(channelId: string): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(`${DRAFT_KEY_PREFIX}${channelId}`) || '';
+}
+function saveDraft(channelId: string, content: string) {
+  if (typeof window === 'undefined') return;
+  if (content && content !== '<p></p>') {
+    localStorage.setItem(`${DRAFT_KEY_PREFIX}${channelId}`, content);
+  } else {
+    localStorage.removeItem(`${DRAFT_KEY_PREFIX}${channelId}`);
+  }
+}
+
 export default function MessageInput({ channelId, currentUser, replyTo, onCancelReply, threadParentMessageId, placeholder }: MessageInputProps) {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(() => getDraft(channelId));
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -165,6 +180,23 @@ export default function MessageInput({ channelId, currentUser, replyTo, onCancel
       }
     }, 0);
   }, [message, mentionStartIndex, mentionSearch]);
+
+  // Load draft when channel changes
+  useEffect(() => {
+    const draft = getDraft(channelId);
+    setMessage(draft);
+    if (useRichText && richEditorRef.current) {
+      richEditorRef.current.setContent(draft);
+    }
+  }, [channelId]);
+
+  // Save draft when message changes (debounced)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      saveDraft(channelId, message);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [message, channelId]);
 
   // Focus textarea when reply is set
   useEffect(() => {
@@ -315,8 +347,9 @@ export default function MessageInput({ channelId, currentUser, replyTo, onCancel
         setIsTyping(false);
       }
 
-      // Clear state
+      // Clear state and draft
       setMessage('');
+      saveDraft(channelId, ''); // Clear the draft
       if (useRichText) {
         richEditorRef.current?.clear();
       }

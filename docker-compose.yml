@@ -18,29 +18,82 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
   app:
     build: .
     restart: unless-stopped
     ports:
       - "3000:3000"
+    expose:
+      - "3000"
     dns:
       - 8.8.8.8
       - 8.8.4.4
     links:
       - db
+      - redis
     environment:
       DATABASE_URL: postgresql://mission:mission123@10.0.0.206:5432/mission_control
+      REDIS_URL: redis://10.0.0.206:6379
       JWT_SECRET: mission-control-super-secret-key-change-me
-      NEXT_PUBLIC_APP_URL: http://10.0.0.206:3000
+      NEXT_PUBLIC_APP_URL: https://10.0.0.206:8443
       OPENCLAW_GATEWAY_URL: http://10.0.0.108:18789
       OPENCLAW_GATEWAY_TOKEN: "111111"
       PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
     volumes:
       - uploads_data:/app/public/uploads
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      REDIS_HOST: "10.0.0.206"
+      REDIS_PORT: "6379"
+      OPENCLAW_GATEWAY_URL: http://10.0.0.108:18789
+      OPENCLAW_GATEWAY_TOKEN: "111111"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "8443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
 
 volumes:
   postgres_data:
   uploads_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

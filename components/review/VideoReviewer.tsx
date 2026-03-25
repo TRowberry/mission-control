@@ -2,7 +2,10 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, Check, Square, MapPin, Circle, ArrowRight, Pencil } from 'lucide-react';
+import { 
+  MessageCircle, Check, Square, MapPin, Circle, ArrowRight, Pencil,
+  Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Volume2, VolumeX
+} from 'lucide-react';
 import * as fabric from 'fabric';
 
 // Tool types
@@ -16,6 +19,7 @@ interface Annotation {
   width?: number | null;
   height?: number | null;
   pathData?: string | null;
+  timestamp?: number | null;
   content: string;
   resolved: boolean;
   color: string;
@@ -36,7 +40,7 @@ interface Annotation {
   createdAt: string;
 }
 
-interface ImageReviewerProps {
+interface VideoReviewerProps {
   src: string;
   annotations: Annotation[];
   onAnnotationCreate?: (data: { 
@@ -46,6 +50,7 @@ interface ImageReviewerProps {
     width?: number;
     height?: number;
     pathData?: string;
+    timestamp?: number;
     content: string;
     color: string;
   }) => void;
@@ -54,15 +59,19 @@ interface ImageReviewerProps {
   readOnly?: boolean;
 }
 
-export function ImageReviewer({
+// Timestamp tolerance for showing annotations (±0.5 seconds)
+const TIMESTAMP_TOLERANCE = 0.5;
+
+export function VideoReviewer({
   src,
   annotations,
   onAnnotationCreate,
   onAnnotationSelect,
   selectedAnnotationId,
   readOnly = false,
-}: ImageReviewerProps) {
+}: VideoReviewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -72,6 +81,14 @@ export function ImageReviewer({
   
   // Color selection - with localStorage persistence
   const [selectedColor, setSelectedColorState] = useState('#FF3B30');
+  
+  // Video state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
   
   // Load saved preferences from localStorage on mount
   useEffect(() => {
@@ -88,7 +105,6 @@ export function ImageReviewer({
         setSelectedColorState(savedColor);
       }
     } catch (e) {
-      // localStorage might be blocked (privacy mode, etc.)
       console.warn('Could not load review preferences from localStorage:', e);
     }
   }, []);
@@ -115,6 +131,7 @@ export function ImageReviewer({
       // Ignore localStorage errors
     }
   };
+  
   const colorSwatches = [
     { color: '#FF3B30', name: 'Red' },
     { color: '#FF9500', name: 'Orange' },
@@ -133,6 +150,7 @@ export function ImageReviewer({
     width?: number;
     height?: number;
     pathData?: string;
+    timestamp?: number;
   } | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [newComment, setNewComment] = useState('');
@@ -140,15 +158,10 @@ export function ImageReviewer({
   // Hover/selection state
   const [hoveredAnnotation, setHoveredAnnotation] = useState<string | null>(null);
   
-  // Image state
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [mounted, setMounted] = useState(false);
-  // Track canvas instance changes to trigger re-attachment of event handlers
   const [canvasReady, setCanvasReady] = useState(false);
   
-  // Rectangle/Circle/Arrow/Freehand drawing state
-  // Using refs instead of state to avoid async state update issues in event handlers
+  // Drawing state refs
   const isDrawingRef = useRef(false);
   const drawStartRef = useRef<{ x: number; y: number } | null>(null);
   const currentRectRef = useRef<fabric.Rect | null>(null);
@@ -157,58 +170,196 @@ export function ImageReviewer({
   const currentFreehandRef = useRef<fabric.Path | null>(null);
   const freehandPointsRef = useRef<{ x: number; y: number }[]>([]);
 
+  // Filter annotations by current timestamp
+  const visibleAnnotations = annotations.filter(annotation => {
+    if (annotation.timestamp === null || annotation.timestamp === undefined) {
+      // Show annotations without timestamp always (legacy behavior)
+      return true;
+    }
+    return Math.abs(annotation.timestamp - currentTime) <= TIMESTAMP_TOLERANCE;
+  });
+
   // Ensure we're on client for portal
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Handle video load
+  const handleVideoLoad = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    setDuration(video.duration);
+    setVideoDimensions({
+      width: video.clientWidth,
+      height: video.clientHeight,
+    });
+    setVideoLoaded(true);
+  }, []);
+
+  // Handle video time update
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setCurrentTime(video.currentTime);
+  }, []);
+
+  // Video controls
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  }, []);
+
+  const seek = useCallback((time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    video.currentTime = Math.max(0, Math.min(time, duration));
+    setCurrentTime(video.currentTime);
+  }, [duration]);
+
+  const frameStep = useCallback((direction: 'forward' | 'backward') => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    // Assume ~30fps, so 1 frame ≈ 0.033 seconds
+    const frameTime = 1 / 30;
+    const newTime = direction === 'forward' 
+      ? video.currentTime + frameTime 
+      : video.currentTime - frameTime;
+    
+    video.currentTime = Math.max(0, Math.min(newTime, duration));
+    setCurrentTime(video.currentTime);
+  }, [duration]);
+
+  const skipSeconds = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    const newTime = video.currentTime + seconds;
+    video.currentTime = Math.max(0, Math.min(newTime, duration));
+    setCurrentTime(video.currentTime);
+  }, [duration]);
+
+  // Pause video when starting to draw
+  const pauseForDrawing = useCallback(() => {
+    const video = videoRef.current;
+    if (video && !video.paused) {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  // Format time as MM:SS.ms
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    const ms = Math.floor((time % 1) * 100);
+    return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (e.shiftKey) {
+            frameStep('backward');
+          } else {
+            skipSeconds(-5);
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (e.shiftKey) {
+            frameStep('forward');
+          } else {
+            skipSeconds(5);
+          }
+          break;
+        case 'm':
+          toggleMute();
+          break;
+        case ',':
+          e.preventDefault();
+          frameStep('backward');
+          break;
+        case '.':
+          e.preventDefault();
+          frameStep('forward');
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlay, toggleMute, frameStep, skipSeconds]);
+
   // Initialize Fabric.js canvas
   useEffect(() => {
-    console.log('[Fabric] Init check:', { canvasRef: !!canvasRef.current, imageLoaded, imageDimensions });
-    if (!canvasRef.current || !imageLoaded || !imageDimensions) return;
-    
+    console.log('[Video Fabric] Init check:', { canvasRef: !!canvasRef.current, videoLoaded, videoDimensions });
+    if (!canvasRef.current || !videoLoaded || !videoDimensions) return;
+
     // Don't initialize if dimensions are 0 (element is off-screen or not visible)
-    if (imageDimensions.width <= 0 || imageDimensions.height <= 0) {
-      console.log('[Fabric] Skipping init - dimensions are 0');
+    if (videoDimensions.width <= 0 || videoDimensions.height <= 0) {
+      console.log('[Video Fabric] Skipping init - dimensions are 0');
       return;
     }
 
-    console.log('[Fabric] Creating canvas with dimensions:', imageDimensions);
+    console.log('[Video Fabric] Creating canvas with dimensions:', videoDimensions);
     const canvas = new fabric.Canvas(canvasRef.current, {
       selection: false,
       renderOnAddRemove: true,
     });
     
     canvas.setDimensions({
-      width: imageDimensions.width,
-      height: imageDimensions.height,
+      width: videoDimensions.width,
+      height: videoDimensions.height,
     });
 
-    // Set z-index on Fabric.js wrapper so it's above pins (z-10/z-20)
     const wrapperEl = canvas.wrapperEl;
     if (wrapperEl) {
       wrapperEl.style.zIndex = '30';
       wrapperEl.style.position = 'absolute';
       wrapperEl.style.top = '0';
       wrapperEl.style.left = '0';
-      console.log('[Fabric] Set wrapper z-index to 30');
     }
 
     fabricCanvasRef.current = canvas;
     setCanvasReady(true);
-    console.log('[Fabric] Canvas ready, canvasReady=true');
 
     return () => {
-      console.log('[Fabric] Disposing canvas, canvasReady=false');
       setCanvasReady(false);
       canvas.dispose();
       fabricCanvasRef.current = null;
     };
-  }, [imageLoaded, imageDimensions]);
+  }, [videoLoaded, videoDimensions]);
 
   // Update wrapper z-index based on current tool
-  // Pin tool: z-0 so pins can be clicked
-  // Drawing tools: z-30 so canvas captures events
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
@@ -217,25 +368,25 @@ export function ImageReviewer({
     if (wrapperEl) {
       const zIndex = currentTool === 'pin' ? '0' : '30';
       wrapperEl.style.zIndex = zIndex;
-      console.log('[Fabric] Updated wrapper z-index to', zIndex, 'for tool', currentTool);
     }
   }, [currentTool, canvasReady]);
 
-  // Draw existing annotations on canvas
+  // Draw existing annotations on canvas (only visible ones based on timestamp)
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
-    if (!canvas || !imageDimensions) return;
+    if (!canvas || !videoDimensions) return;
 
-    // Clear existing objects (except active drawing shapes)
+    // Clear existing objects
     const objects = canvas.getObjects();
     objects.forEach(obj => {
-      if (obj !== currentRectRef.current && obj !== currentEllipseRef.current && obj !== currentArrowRef.current && obj !== currentFreehandRef.current) {
+      if (obj !== currentRectRef.current && obj !== currentEllipseRef.current && 
+          obj !== currentArrowRef.current && obj !== currentFreehandRef.current) {
         canvas.remove(obj);
       }
     });
 
-    // Draw rectangle and circle annotations
-    annotations.forEach(annotation => {
+    // Draw visible annotations (filtered by timestamp)
+    visibleAnnotations.forEach(annotation => {
       if (annotation.type === 'rectangle' && 
           annotation.x !== null && 
           annotation.y !== null && 
@@ -246,10 +397,10 @@ export function ImageReviewer({
         const isHovered = hoveredAnnotation === annotation.id;
         
         const rect = new fabric.Rect({
-          left: (annotation.x / 100) * imageDimensions.width,
-          top: (annotation.y / 100) * imageDimensions.height,
-          width: (annotation.width / 100) * imageDimensions.width,
-          height: (annotation.height / 100) * imageDimensions.height,
+          left: (annotation.x / 100) * videoDimensions.width,
+          top: (annotation.y / 100) * videoDimensions.height,
+          width: (annotation.width / 100) * videoDimensions.width,
+          height: (annotation.height / 100) * videoDimensions.height,
           fill: 'transparent',
           stroke: annotation.resolved ? '#22c55e' : annotation.color,
           strokeWidth: isSelected || isHovered ? 3 : 2,
@@ -258,7 +409,6 @@ export function ImageReviewer({
           data: { annotationId: annotation.id },
         });
 
-        // Add click handler
         rect.on('mousedown', (e) => {
           e.e.stopPropagation();
           onAnnotationSelect?.(annotation.id);
@@ -277,7 +427,6 @@ export function ImageReviewer({
         canvas.add(rect);
       }
 
-      // Draw circle annotations (stored as center x, y with width/height)
       if (annotation.type === 'circle' && 
           annotation.x !== null && 
           annotation.y !== null && 
@@ -287,11 +436,10 @@ export function ImageReviewer({
         const isSelected = selectedAnnotationId === annotation.id;
         const isHovered = hoveredAnnotation === annotation.id;
         
-        // x, y are center coordinates, width/height are full dimensions
-        const centerX = (annotation.x / 100) * imageDimensions.width;
-        const centerY = (annotation.y / 100) * imageDimensions.height;
-        const radiusX = ((annotation.width / 100) * imageDimensions.width) / 2;
-        const radiusY = ((annotation.height / 100) * imageDimensions.height) / 2;
+        const centerX = (annotation.x / 100) * videoDimensions.width;
+        const centerY = (annotation.y / 100) * videoDimensions.height;
+        const radiusX = ((annotation.width / 100) * videoDimensions.width) / 2;
+        const radiusY = ((annotation.height / 100) * videoDimensions.height) / 2;
         
         const ellipse = new fabric.Ellipse({
           left: centerX - radiusX,
@@ -306,7 +454,6 @@ export function ImageReviewer({
           data: { annotationId: annotation.id },
         });
 
-        // Add click handler
         ellipse.on('mousedown', (e) => {
           e.e.stopPropagation();
           onAnnotationSelect?.(annotation.id);
@@ -325,7 +472,6 @@ export function ImageReviewer({
         canvas.add(ellipse);
       }
 
-      // Draw arrow annotations
       if (annotation.type === 'arrow' && 
           annotation.x !== null && 
           annotation.y !== null && 
@@ -336,15 +482,14 @@ export function ImageReviewer({
         
         try {
           const endPoint = JSON.parse(annotation.pathData);
-          const startX = (annotation.x / 100) * imageDimensions.width;
-          const startY = (annotation.y / 100) * imageDimensions.height;
-          const endX = (endPoint.endX / 100) * imageDimensions.width;
-          const endY = (endPoint.endY / 100) * imageDimensions.height;
+          const startX = (annotation.x / 100) * videoDimensions.width;
+          const startY = (annotation.y / 100) * videoDimensions.height;
+          const endX = (endPoint.endX / 100) * videoDimensions.width;
+          const endY = (endPoint.endY / 100) * videoDimensions.height;
           
           const strokeColor = annotation.resolved ? '#22c55e' : annotation.color;
           const strokeWidth = isSelected || isHovered ? 3 : 2;
           
-          // Create the arrow line
           const line = new fabric.Line([startX, startY, endX, endY], {
             stroke: strokeColor,
             strokeWidth: strokeWidth,
@@ -352,21 +497,14 @@ export function ImageReviewer({
             evented: false,
           });
           
-          // Calculate arrowhead
           const angle = Math.atan2(endY - startY, endX - startX);
           const headLength = 15;
-          const headAngle = Math.PI / 6; // 30 degrees
+          const headAngle = Math.PI / 6;
           
           const arrowHead = new fabric.Polygon([
             { x: endX, y: endY },
-            { 
-              x: endX - headLength * Math.cos(angle - headAngle), 
-              y: endY - headLength * Math.sin(angle - headAngle) 
-            },
-            { 
-              x: endX - headLength * Math.cos(angle + headAngle), 
-              y: endY - headLength * Math.sin(angle + headAngle) 
-            },
+            { x: endX - headLength * Math.cos(angle - headAngle), y: endY - headLength * Math.sin(angle - headAngle) },
+            { x: endX - headLength * Math.cos(angle + headAngle), y: endY - headLength * Math.sin(angle + headAngle) },
           ], {
             fill: strokeColor,
             stroke: strokeColor,
@@ -375,16 +513,13 @@ export function ImageReviewer({
             evented: false,
           });
           
-          // Group line and arrowhead
           const arrowGroup = new fabric.Group([line, arrowHead], {
             selectable: false,
             evented: true,
           });
           
-          // Set annotation data for reference
           (arrowGroup as fabric.Group & { data?: { annotationId: string } }).data = { annotationId: annotation.id };
           
-          // Add event handlers
           arrowGroup.on('mousedown', (e) => {
             e.e.stopPropagation();
             onAnnotationSelect?.(annotation.id);
@@ -406,7 +541,6 @@ export function ImageReviewer({
         }
       }
 
-      // Draw freehand annotations
       if (annotation.type === 'freehand' && 
           annotation.x !== null && 
           annotation.y !== null && 
@@ -422,10 +556,9 @@ export function ImageReviewer({
           const strokeColor = annotation.resolved ? '#22c55e' : annotation.color;
           const strokeWidth = isSelected || isHovered ? 4 : 3;
           
-          // Build SVG path string from percentage points
-          let pathString = `M ${(points[0].x / 100) * imageDimensions.width} ${(points[0].y / 100) * imageDimensions.height}`;
+          let pathString = `M ${(points[0].x / 100) * videoDimensions.width} ${(points[0].y / 100) * videoDimensions.height}`;
           for (let i = 1; i < points.length; i++) {
-            pathString += ` L ${(points[i].x / 100) * imageDimensions.width} ${(points[i].y / 100) * imageDimensions.height}`;
+            pathString += ` L ${(points[i].x / 100) * videoDimensions.width} ${(points[i].y / 100) * videoDimensions.height}`;
           }
           
           const path = new fabric.Path(pathString, {
@@ -438,10 +571,8 @@ export function ImageReviewer({
             evented: true,
           });
           
-          // Set annotation data for reference
           (path as fabric.Path & { data?: { annotationId: string } }).data = { annotationId: annotation.id };
           
-          // Add event handlers
           path.on('mousedown', (e) => {
             e.e.stopPropagation();
             onAnnotationSelect?.(annotation.id);
@@ -465,26 +596,22 @@ export function ImageReviewer({
     });
 
     canvas.renderAll();
-  }, [annotations, selectedAnnotationId, hoveredAnnotation, imageDimensions, onAnnotationSelect]);
+  }, [visibleAnnotations, selectedAnnotationId, hoveredAnnotation, videoDimensions, onAnnotationSelect]);
 
-  // Handle canvas mouse events for rectangle drawing
+  // Rectangle drawing handlers
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
-    console.log('[Rectangle] useEffect:', { canvas: !!canvas, readOnly, currentTool, canvasReady });
     if (!canvas || readOnly || currentTool !== 'rectangle') return;
 
-    console.log('[Rectangle] Attaching handlers to canvas');
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
-      console.log('[Rectangle] mousedown fired!');
       if (isAddingAnnotation) return;
       
-      // Use getScenePoint for accurate canvas coordinates (not affected by viewport transforms)
+      pauseForDrawing();
+      
       const pointer = opt.scenePoint;
-      console.log('[Rectangle] mousedown pointer:', pointer);
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
-      // Parse color for fill with alpha
       const hexToRgba = (hex: string, alpha: number) => {
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);
@@ -525,8 +652,8 @@ export function ImageReviewer({
       canvas.renderAll();
     };
 
-    const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawingRef.current || !drawStartRef.current || !currentRectRef.current || !imageDimensions) {
+    const handleMouseUp = () => {
+      if (!isDrawingRef.current || !drawStartRef.current || !currentRectRef.current || !videoDimensions) {
         isDrawingRef.current = false;
         drawStartRef.current = null;
         return;
@@ -536,7 +663,6 @@ export function ImageReviewer({
       const width = rect.width || 0;
       const height = rect.height || 0;
 
-      // Minimum size check (at least 10x10 pixels)
       if (width < 10 || height < 10) {
         canvas.remove(rect);
         currentRectRef.current = null;
@@ -545,13 +671,11 @@ export function ImageReviewer({
         return;
       }
 
-      // Convert to percentages
-      const xPercent = ((rect.left || 0) / imageDimensions.width) * 100;
-      const yPercent = ((rect.top || 0) / imageDimensions.height) * 100;
-      const widthPercent = (width / imageDimensions.width) * 100;
-      const heightPercent = (height / imageDimensions.height) * 100;
+      const xPercent = ((rect.left || 0) / videoDimensions.width) * 100;
+      const yPercent = ((rect.top || 0) / videoDimensions.height) * 100;
+      const widthPercent = (width / videoDimensions.width) * 100;
+      const heightPercent = (height / videoDimensions.height) * 100;
 
-      // Calculate popup position
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const popupWidth = 280;
@@ -574,15 +698,12 @@ export function ImageReviewer({
         y: yPercent,
         width: widthPercent,
         height: heightPercent,
+        timestamp: currentTime,
       });
       setIsAddingAnnotation(true);
       setNewComment('');
       
-      // Keep the rect visible but change its style to indicate pending
-      rect.set({
-        stroke: '#3B82F6',
-        strokeDashArray: [5, 5],
-      });
+      rect.set({ stroke: '#3B82F6', strokeDashArray: [5, 5] });
       canvas.renderAll();
 
       isDrawingRef.current = false;
@@ -598,21 +719,25 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
+  }, [currentTool, readOnly, videoDimensions, isAddingAnnotation, selectedColor, canvasReady, pauseForDrawing, currentTime]);
 
-  // Handle canvas mouse events for circle/ellipse drawing
+  // Circle drawing handlers
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
+    console.log('[Video Circle] useEffect:', { canvas: !!canvas, readOnly, currentTool, canvasReady });
     if (!canvas || readOnly || currentTool !== 'circle') return;
 
+    console.log('[Video Circle] Attaching handlers to canvas');
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+      console.log('[Video Circle] mousedown fired!');
       if (isAddingAnnotation) return;
+      
+      pauseForDrawing();
       
       const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
-      // Parse color for fill with alpha
       const hexToRgba = (hex: string, alpha: number) => {
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);
@@ -644,24 +769,17 @@ export function ImageReviewer({
       const pointer = opt.scenePoint;
       const ellipse = currentEllipseRef.current;
 
-      // Calculate bounding box
       const left = Math.min(drawStartRef.current.x, pointer.x);
       const top = Math.min(drawStartRef.current.y, pointer.y);
       const width = Math.abs(pointer.x - drawStartRef.current.x);
       const height = Math.abs(pointer.y - drawStartRef.current.y);
 
-      // Set ellipse position and radii
-      ellipse.set({
-        left: left,
-        top: top,
-        rx: width / 2,
-        ry: height / 2,
-      });
+      ellipse.set({ left, top, rx: width / 2, ry: height / 2 });
       canvas.renderAll();
     };
 
-    const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawingRef.current || !drawStartRef.current || !currentEllipseRef.current || !imageDimensions) {
+    const handleMouseUp = () => {
+      if (!isDrawingRef.current || !drawStartRef.current || !currentEllipseRef.current || !videoDimensions) {
         isDrawingRef.current = false;
         drawStartRef.current = null;
         return;
@@ -673,7 +791,6 @@ export function ImageReviewer({
       const width = rx * 2;
       const height = ry * 2;
 
-      // Minimum size check (at least 10x10 pixels)
       if (width < 10 || height < 10) {
         canvas.remove(ellipse);
         currentEllipseRef.current = null;
@@ -682,13 +799,11 @@ export function ImageReviewer({
         return;
       }
 
-      // Calculate center coordinates as percentages
-      const centerX = ((ellipse.left || 0) + rx) / imageDimensions.width * 100;
-      const centerY = ((ellipse.top || 0) + ry) / imageDimensions.height * 100;
-      const widthPercent = (width / imageDimensions.width) * 100;
-      const heightPercent = (height / imageDimensions.height) * 100;
+      const centerX = ((ellipse.left || 0) + rx) / videoDimensions.width * 100;
+      const centerY = ((ellipse.top || 0) + ry) / videoDimensions.height * 100;
+      const widthPercent = (width / videoDimensions.width) * 100;
+      const heightPercent = (height / videoDimensions.height) * 100;
 
-      // Calculate popup position
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const popupWidth = 280;
@@ -711,15 +826,12 @@ export function ImageReviewer({
         y: centerY,
         width: widthPercent,
         height: heightPercent,
+        timestamp: currentTime,
       });
       setIsAddingAnnotation(true);
       setNewComment('');
       
-      // Keep the ellipse visible but change its style to indicate pending
-      ellipse.set({
-        stroke: '#3B82F6',
-        strokeDashArray: [5, 5],
-      });
+      ellipse.set({ stroke: '#3B82F6', strokeDashArray: [5, 5] });
       canvas.renderAll();
 
       isDrawingRef.current = false;
@@ -735,14 +847,13 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
+  }, [currentTool, readOnly, videoDimensions, isAddingAnnotation, selectedColor, canvasReady, pauseForDrawing, currentTime]);
 
-  // Handle canvas mouse events for arrow drawing
+  // Arrow drawing handlers
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     if (!canvas || readOnly || currentTool !== 'arrow') return;
 
-    // Helper to create arrow group
     const createArrowGroup = (startX: number, startY: number, endX: number, endY: number, color: string, strokeWidth: number) => {
       const line = new fabric.Line([startX, startY, endX, endY], {
         stroke: color,
@@ -751,21 +862,14 @@ export function ImageReviewer({
         evented: false,
       });
 
-      // Calculate arrowhead
       const angle = Math.atan2(endY - startY, endX - startX);
       const headLength = 15;
-      const headAngle = Math.PI / 6; // 30 degrees
+      const headAngle = Math.PI / 6;
 
       const arrowHead = new fabric.Polygon([
         { x: endX, y: endY },
-        { 
-          x: endX - headLength * Math.cos(angle - headAngle), 
-          y: endY - headLength * Math.sin(angle - headAngle) 
-        },
-        { 
-          x: endX - headLength * Math.cos(angle + headAngle), 
-          y: endY - headLength * Math.sin(angle + headAngle) 
-        },
+        { x: endX - headLength * Math.cos(angle - headAngle), y: endY - headLength * Math.sin(angle - headAngle) },
+        { x: endX - headLength * Math.cos(angle + headAngle), y: endY - headLength * Math.sin(angle + headAngle) },
       ], {
         fill: color,
         stroke: color,
@@ -783,11 +887,12 @@ export function ImageReviewer({
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
       if (isAddingAnnotation) return;
       
+      pauseForDrawing();
+      
       const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
 
-      // Create initial arrow (will be a dot initially)
       const arrow = createArrowGroup(pointer.x, pointer.y, pointer.x, pointer.y, selectedColor, 2);
       currentArrowRef.current = arrow;
       canvas.add(arrow);
@@ -798,7 +903,6 @@ export function ImageReviewer({
 
       const pointer = opt.scenePoint;
       
-      // Remove old arrow and create new one with updated end point
       canvas.remove(currentArrowRef.current);
       const arrow = createArrowGroup(drawStartRef.current.x, drawStartRef.current.y, pointer.x, pointer.y, selectedColor, 2);
       currentArrowRef.current = arrow;
@@ -807,7 +911,7 @@ export function ImageReviewer({
     };
 
     const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
-      if (!isDrawingRef.current || !drawStartRef.current || !currentArrowRef.current || !imageDimensions) {
+      if (!isDrawingRef.current || !drawStartRef.current || !currentArrowRef.current || !videoDimensions) {
         isDrawingRef.current = false;
         drawStartRef.current = null;
         return;
@@ -818,7 +922,6 @@ export function ImageReviewer({
         Math.pow(pointer.x - drawStartRef.current.x, 2) + Math.pow(pointer.y - drawStartRef.current.y, 2)
       );
 
-      // Minimum length check (at least 20 pixels)
       if (length < 20) {
         canvas.remove(currentArrowRef.current);
         currentArrowRef.current = null;
@@ -827,13 +930,11 @@ export function ImageReviewer({
         return;
       }
 
-      // Convert to percentages
-      const startXPercent = (drawStartRef.current.x / imageDimensions.width) * 100;
-      const startYPercent = (drawStartRef.current.y / imageDimensions.height) * 100;
-      const endXPercent = (pointer.x / imageDimensions.width) * 100;
-      const endYPercent = (pointer.y / imageDimensions.height) * 100;
+      const startXPercent = (drawStartRef.current.x / videoDimensions.width) * 100;
+      const startYPercent = (drawStartRef.current.y / videoDimensions.height) * 100;
+      const endXPercent = (pointer.x / videoDimensions.width) * 100;
+      const endYPercent = (pointer.y / videoDimensions.height) * 100;
 
-      // Calculate popup position (near the end of the arrow)
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const popupWidth = 280;
@@ -855,11 +956,11 @@ export function ImageReviewer({
         x: startXPercent,
         y: startYPercent,
         pathData: JSON.stringify({ endX: endXPercent, endY: endYPercent }),
+        timestamp: currentTime,
       });
       setIsAddingAnnotation(true);
       setNewComment('');
       
-      // Update arrow style to indicate pending
       canvas.remove(currentArrowRef.current);
       const pendingArrow = createArrowGroup(drawStartRef.current.x, drawStartRef.current.y, pointer.x, pointer.y, '#3B82F6', 2);
       currentArrowRef.current = pendingArrow;
@@ -879,9 +980,9 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
+  }, [currentTool, readOnly, videoDimensions, isAddingAnnotation, selectedColor, canvasReady, pauseForDrawing, currentTime]);
 
-  // Handle canvas mouse events for freehand drawing
+  // Freehand drawing handlers
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     if (!canvas || readOnly || currentTool !== 'freehand') return;
@@ -889,14 +990,14 @@ export function ImageReviewer({
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
       if (isAddingAnnotation) return;
       
+      pauseForDrawing();
+      
       const pointer = opt.scenePoint;
       isDrawingRef.current = true;
       drawStartRef.current = { x: pointer.x, y: pointer.y };
       
-      // Initialize points array with first point (in pixels, will convert later)
       freehandPointsRef.current = [{ x: pointer.x, y: pointer.y }];
 
-      // Start building the path
       const path = new fabric.Path(`M ${pointer.x} ${pointer.y}`, {
         fill: 'transparent',
         stroke: selectedColor,
@@ -916,17 +1017,14 @@ export function ImageReviewer({
 
       const pointer = opt.scenePoint;
       
-      // Add point to array
       freehandPointsRef.current.push({ x: pointer.x, y: pointer.y });
       
-      // Rebuild path string
       const points = freehandPointsRef.current;
       let pathString = `M ${points[0].x} ${points[0].y}`;
       for (let i = 1; i < points.length; i++) {
         pathString += ` L ${points[i].x} ${points[i].y}`;
       }
       
-      // Update the path
       canvas.remove(currentFreehandRef.current);
       const path = new fabric.Path(pathString, {
         fill: 'transparent',
@@ -943,7 +1041,7 @@ export function ImageReviewer({
     };
 
     const handleMouseUp = () => {
-      if (!isDrawingRef.current || !currentFreehandRef.current || !imageDimensions) {
+      if (!isDrawingRef.current || !currentFreehandRef.current || !videoDimensions) {
         isDrawingRef.current = false;
         drawStartRef.current = null;
         return;
@@ -951,7 +1049,6 @@ export function ImageReviewer({
 
       const points = freehandPointsRef.current;
 
-      // Minimum points check (need at least a short stroke)
       if (points.length < 3) {
         canvas.remove(currentFreehandRef.current);
         currentFreehandRef.current = null;
@@ -961,7 +1058,6 @@ export function ImageReviewer({
         return;
       }
 
-      // Calculate bounding box
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const point of points) {
         minX = Math.min(minX, point.x);
@@ -970,17 +1066,14 @@ export function ImageReviewer({
         maxY = Math.max(maxY, point.y);
       }
 
-      // Convert points to percentages
       const percentPoints = points.map(p => ({
-        x: (p.x / imageDimensions.width) * 100,
-        y: (p.y / imageDimensions.height) * 100,
+        x: (p.x / videoDimensions.width) * 100,
+        y: (p.y / videoDimensions.height) * 100,
       }));
 
-      // x, y = top-left of bounding box as percentage
-      const xPercent = (minX / imageDimensions.width) * 100;
-      const yPercent = (minY / imageDimensions.height) * 100;
+      const xPercent = (minX / videoDimensions.width) * 100;
+      const yPercent = (minY / videoDimensions.height) * 100;
 
-      // Calculate popup position (near center of bounding box)
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
         const popupWidth = 280;
@@ -1002,11 +1095,11 @@ export function ImageReviewer({
         x: xPercent,
         y: yPercent,
         pathData: JSON.stringify(percentPoints),
+        timestamp: currentTime,
       });
       setIsAddingAnnotation(true);
       setNewComment('');
       
-      // Update path style to indicate pending
       canvas.remove(currentFreehandRef.current);
       let pathString = `M ${points[0].x} ${points[0].y}`;
       for (let i = 1; i < points.length; i++) {
@@ -1039,25 +1132,27 @@ export function ImageReviewer({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, selectedColor, canvasReady]);
+  }, [currentTool, readOnly, videoDimensions, isAddingAnnotation, selectedColor, canvasReady, pauseForDrawing, currentTime]);
 
   // Handle canvas mouse events for pin tool
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
-    console.log('[Pin] useEffect:', { canvas: !!canvas, readOnly, currentTool, canvasReady });
+    console.log('[Video Pin] useEffect:', { canvas: !!canvas, readOnly, currentTool, canvasReady });
     if (!canvas || readOnly || currentTool !== 'pin' || !containerRef.current) return;
 
-    console.log('[Pin] Attaching handler to canvas');
+    console.log('[Video Pin] Attaching handler to canvas');
     const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
-      console.log('[Pin] mousedown fired!', { isAddingAnnotation });
+      console.log('[Video Pin] mousedown fired!', { isAddingAnnotation });
       if (isAddingAnnotation) return;
       
+      pauseForDrawing();
+      
       const pointer = opt.scenePoint;
-      if (!imageDimensions) return;
+      if (!videoDimensions) return;
       
       // Convert to percentage coordinates
-      const x = (pointer.x / imageDimensions.width) * 100;
-      const y = (pointer.y / imageDimensions.height) * 100;
+      const x = (pointer.x / videoDimensions.width) * 100;
+      const y = (pointer.y / videoDimensions.height) * 100;
       
       // Calculate popup position - use the original event for screen coords
       const e = opt.e as MouseEvent;
@@ -1067,7 +1162,7 @@ export function ImageReviewer({
         ? e.clientX - popupWidth - 20
         : popupLeft;
 
-      setPendingAnnotation({ type: 'pin', x, y });
+      setPendingAnnotation({ type: 'pin', x, y, timestamp: currentTime });
       setPopupPosition({ top: e.clientY - 20, left: adjustedLeft });
       setIsAddingAnnotation(true);
       setNewComment('');
@@ -1078,31 +1173,30 @@ export function ImageReviewer({
     return () => {
       canvas.off('mouse:down', handleMouseDown);
     };
-  }, [currentTool, readOnly, imageDimensions, isAddingAnnotation, canvasReady]);
+  }, [currentTool, readOnly, videoDimensions, isAddingAnnotation, canvasReady, pauseForDrawing, currentTime]);
 
-  // Handle pin click (existing behavior - fallback for non-canvas clicks)
-  const handleImageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // Handle pin click (fallback for non-canvas clicks)
+  const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || currentTool !== 'pin' || isAddingAnnotation) return;
+    if ((e.target as HTMLElement).tagName === 'CANVAS') return;
 
-    // Allow pin creation regardless of click target (canvas, image, or container)
-    // The canvas z-index is lowered for pin tool anyway
+    pauseForDrawing();
 
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-    // Calculate popup position in viewport coordinates
     const popupWidth = 280;
     const popupLeft = e.clientX + 20;
     const adjustedLeft = popupLeft + popupWidth > window.innerWidth 
       ? e.clientX - popupWidth - 20
       : popupLeft;
 
-    setPendingAnnotation({ type: 'pin', x, y });
+    setPendingAnnotation({ type: 'pin', x, y, timestamp: currentTime });
     setPopupPosition({ top: e.clientY - 20, left: adjustedLeft });
     setIsAddingAnnotation(true);
     setNewComment('');
-  }, [readOnly, currentTool, isAddingAnnotation]);
+  }, [readOnly, currentTool, isAddingAnnotation, pauseForDrawing, currentTime]);
 
   const handleSubmitAnnotation = useCallback(() => {
     if (!pendingAnnotation || !newComment.trim() || !onAnnotationCreate) return;
@@ -1114,6 +1208,7 @@ export function ImageReviewer({
       width: pendingAnnotation.width,
       height: pendingAnnotation.height,
       pathData: pendingAnnotation.pathData,
+      timestamp: pendingAnnotation.timestamp,
       content: newComment.trim(),
       color: selectedColor,
     });
@@ -1144,7 +1239,6 @@ export function ImageReviewer({
   }, [pendingAnnotation, newComment, onAnnotationCreate, selectedColor]);
 
   const handleCancelAnnotation = useCallback(() => {
-    // Remove pending shapes from canvas
     if (currentRectRef.current && fabricCanvasRef.current) {
       fabricCanvasRef.current.remove(currentRectRef.current);
       fabricCanvasRef.current.renderAll();
@@ -1181,53 +1275,30 @@ export function ImageReviewer({
     }
   }, [handleCancelAnnotation, handleSubmitAnnotation]);
 
-  // Handle image load to get dimensions
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    setImageDimensions({
-      width: img.clientWidth,
-      height: img.clientHeight,
-    });
-    setImageLoaded(true);
-  }, []);
-
-  // Update canvas dimensions on container resize (also helps when panel slides into view)
+  // Update canvas dimensions on container resize
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !fabricCanvasRef.current) return;
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const img = entry.target.querySelector('img');
-        if (img) {
-          const newWidth = img.clientWidth;
-          const newHeight = img.clientHeight;
-          
-          // Only update if dimensions are valid and different
-          if (newWidth > 0 && newHeight > 0) {
-            setImageDimensions((prev) => {
-              if (!prev || prev.width !== newWidth || prev.height !== newHeight) {
-                console.log('[Fabric] ResizeObserver: dimensions changed to', newWidth, newHeight);
-                return { width: newWidth, height: newHeight };
-              }
-              return prev;
-            });
-            
-            // Also update existing canvas if it exists
-            if (fabricCanvasRef.current) {
-              fabricCanvasRef.current.setDimensions({
-                width: newWidth,
-                height: newHeight,
-              });
-              fabricCanvasRef.current.renderAll();
-            }
-          }
+        const video = entry.target.querySelector('video');
+        if (video && fabricCanvasRef.current) {
+          setVideoDimensions({
+            width: video.clientWidth,
+            height: video.clientHeight,
+          });
+          fabricCanvasRef.current.setDimensions({
+            width: video.clientWidth,
+            height: video.clientHeight,
+          });
+          fabricCanvasRef.current.renderAll();
         }
       }
     });
 
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
-  }, [imageLoaded]);
+  }, [videoLoaded]);
 
   // Close annotation form when clicking outside
   useEffect(() => {
@@ -1283,6 +1354,9 @@ export function ImageReviewer({
             <MapPin className="w-3 h-3" />
             <span>Pin annotation</span>
           </>
+        )}
+        {pendingAnnotation?.timestamp !== undefined && (
+          <span className="ml-auto text-blue-400">@ {formatTime(pendingAnnotation.timestamp)}</span>
         )}
       </div>
       <textarea
@@ -1401,7 +1475,6 @@ export function ImageReviewer({
               />
             ))}
             
-            {/* Custom color picker */}
             <div className="relative ml-1">
               <input
                 type="color"
@@ -1426,42 +1499,40 @@ export function ImageReviewer({
         </div>
       )}
 
-      {/* Image container */}
+      {/* Video container */}
       <div
         ref={containerRef}
         className={`relative flex-1 overflow-hidden bg-zinc-900 rounded-lg ${
           currentTool === 'pin' && !readOnly ? 'cursor-crosshair' : ''
-        } ${currentTool === 'rectangle' && !readOnly ? 'cursor-crosshair' : ''} ${
-          currentTool === 'circle' && !readOnly ? 'cursor-crosshair' : ''
-        } ${currentTool === 'arrow' && !readOnly ? 'cursor-crosshair' : ''} ${
-          currentTool === 'freehand' && !readOnly ? 'cursor-crosshair' : ''
-        }`}
-        onClick={handleImageClick}
+        } ${['rectangle', 'circle', 'arrow', 'freehand'].includes(currentTool) && !readOnly ? 'cursor-crosshair' : ''}`}
+        onClick={handleVideoClick}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        {/* Video element */}
+        <video
+          ref={videoRef}
           src={src}
-          alt="Review item"
           className="w-full h-full object-contain"
-          onLoad={handleImageLoad}
-          draggable={false}
+          onLoadedMetadata={handleVideoLoad}
+          onTimeUpdate={handleTimeUpdate}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
         />
 
-        {/* Fabric.js Canvas Overlay - z-index is set via JS on the wrapper element
-            to avoid conflicts between CSS and inline styles */}
-        {imageLoaded && imageDimensions && (
+        {/* Fabric.js Canvas Overlay - z-index is set via JS on the wrapper element */}
+        {videoLoaded && videoDimensions && (
           <canvas
             ref={canvasRef}
             className="absolute top-0 left-0 pointer-events-auto"
             style={{
-              width: imageDimensions.width,
-              height: imageDimensions.height,
+              width: videoDimensions.width,
+              height: videoDimensions.height,
             }}
           />
         )}
 
-        {/* Pin annotations (existing behavior) */}
-        {imageLoaded && annotations.map((annotation) => {
+        {/* Pin annotations */}
+        {videoLoaded && visibleAnnotations.map((annotation) => {
           if (annotation.type !== 'pin' || annotation.x === null || annotation.y === null) return null;
           
           const isSelected = selectedAnnotationId === annotation.id;
@@ -1506,6 +1577,9 @@ export function ImageReviewer({
                 }`}>
                   <p className="text-xs text-zinc-400 mb-1">
                     {annotation.author.displayName || 'Anonymous'}
+                    {annotation.timestamp !== null && annotation.timestamp !== undefined && (
+                      <span className="ml-2 text-blue-400">@ {formatTime(annotation.timestamp)}</span>
+                    )}
                   </p>
                   <p className="text-sm text-white line-clamp-2">{annotation.content}</p>
                 </div>
@@ -1533,11 +1607,11 @@ export function ImageReviewer({
         )}
 
         {/* Instructions hint */}
-        {!readOnly && annotations.length === 0 && !isAddingAnnotation && imageLoaded && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-none">
+        {!readOnly && annotations.length === 0 && !isAddingAnnotation && videoLoaded && (
+          <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 pointer-events-none">
             <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-1.5 text-xs text-white/80 shadow-lg">
               {currentTool === 'pin' 
-                ? 'Click anywhere to add a comment'
+                ? 'Click anywhere to add a comment at this timestamp'
                 : currentTool === 'rectangle'
                 ? 'Click and drag to draw a rectangle'
                 : currentTool === 'circle'
@@ -1551,10 +1625,100 @@ export function ImageReviewer({
         )}
       </div>
 
+      {/* Video Controls */}
+      <div className="mt-2 bg-zinc-800/90 backdrop-blur-sm rounded-lg p-3">
+        {/* Progress bar */}
+        <div className="mb-2">
+          <input
+            type="range"
+            min="0"
+            max={duration || 100}
+            step="0.01"
+            value={currentTime}
+            onChange={(e) => seek(parseFloat(e.target.value))}
+            className="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+          />
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {/* Frame step backward */}
+            <button
+              onClick={() => frameStep('backward')}
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              title="Previous frame (,)"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* Skip backward 5s */}
+            <button
+              onClick={() => skipSeconds(-5)}
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              title="Skip back 5s (←)"
+            >
+              <SkipBack className="w-4 h-4" />
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlay}
+              className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+            </button>
+
+            {/* Skip forward 5s */}
+            <button
+              onClick={() => skipSeconds(5)}
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              title="Skip forward 5s (→)"
+            >
+              <SkipForward className="w-4 h-4" />
+            </button>
+
+            {/* Frame step forward */}
+            <button
+              onClick={() => frameStep('forward')}
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+              title="Next frame (.)"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Mute toggle */}
+            <button
+              onClick={toggleMute}
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors ml-2"
+              title={isMuted ? 'Unmute (m)' : 'Mute (m)'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Time display */}
+          <div className="text-sm text-zinc-400 font-mono">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </div>
+
+          {/* Annotation count at current timestamp */}
+          <div className="text-xs text-zinc-500">
+            {visibleAnnotations.length} annotation{visibleAnnotations.length !== 1 ? 's' : ''} at this time
+          </div>
+        </div>
+
+        {/* Keyboard shortcuts hint */}
+        <div className="mt-2 text-xs text-zinc-600 text-center">
+          Space: play/pause • ←/→: ±5s • Shift+←/→ or ,/.: frame step • m: mute
+        </div>
+      </div>
+
       {/* Portal-rendered comment popup */}
       {commentPopup}
     </div>
   );
 }
 
-export default ImageReviewer;
+export default VideoReviewer;

@@ -1,0 +1,2 @@
+ALTER TABLE "AgentEntity" ADD COLUMN IF NOT EXISTS "metadata" TEXT;
+ALTER TABLE "AgentRelationship" ADD COLUMN IF NOT EXISTS "metadata" TEXT;

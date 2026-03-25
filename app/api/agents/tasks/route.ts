@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getAgentFromApiKey } from '@/lib/agent-auth';
+import { canAccessProject } from '@/lib/modules/api/permissions';
 
 // Valid priority values
 const VALID_PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
@@ -186,6 +187,188 @@ export async function GET(request: NextRequest) {
     console.error('[Agent Tasks] Error fetching tasks:', error);
     return NextResponse.json(
       { error: 'Failed to fetch tasks' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/agents/tasks
+ * 
+ * Create a new task in a project the agent has access to.
+ * 
+ * Body:
+ *   - title: required - task title
+ *   - columnId: required - column to create task in
+ *   - description: optional - task description
+ *   - priority: optional - "none", "low", "medium", "high", "urgent" (default: "medium")
+ *   - dueDate: optional - ISO string
+ *   - assigneeId: optional - defaults to the agent creating the task
+ *   - subtasks: optional - array of {title: string, completed?: boolean}
+ * 
+ * Headers:
+ *   - X-API-Key: Agent's API key
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const agent = await getAgentFromApiKey();
+    if (!agent) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Invalid or missing API key' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { 
+      title, 
+      columnId, 
+      description, 
+      priority = 'medium', 
+      dueDate,
+      assigneeId,
+      subtasks,
+    } = body;
+
+    // Validate required fields
+    if (!title || !columnId) {
+      return NextResponse.json(
+        { error: 'title and columnId are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate priority if provided
+    if (priority && !VALID_PRIORITIES.includes(priority)) {
+      return NextResponse.json(
+        { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Get the column and verify agent has access to the project
+    const column = await prisma.column.findUnique({
+      where: { id: columnId },
+      select: { id: true, projectId: true, name: true },
+    });
+
+    if (!column) {
+      return NextResponse.json(
+        { error: 'Column not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check agent has access to this project
+    const hasAccess = await canAccessProject({ id: agent.id, isAgent: true } as any, column.projectId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'No access to this project' },
+        { status: 403 }
+      );
+    }
+
+    // Get max position in column for ordering
+    const maxPosition = await prisma.task.aggregate({
+      where: { columnId },
+      _max: { position: true },
+    });
+
+    // Create the task
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description: description || null,
+        priority,
+        position: (maxPosition._max.position ?? -1) + 1,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        columnId,
+        createdById: agent.id,
+        assigneeId: assigneeId || agent.id, // Default to agent if not specified
+        subtasks: subtasks ? {
+          create: subtasks.map((s: { title: string; completed?: boolean }, i: number) => ({
+            title: s.title,
+            completed: s.completed || false,
+            position: i,
+          })),
+        } : undefined,
+      },
+      include: {
+        column: {
+          select: {
+            id: true,
+            name: true,
+            project: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
+          },
+        },
+        subtasks: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            completed: true,
+            position: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // Log activity
+    try {
+      await prisma.activity.create({
+        data: {
+          type: 'task_created',
+          data: {
+            agentCreated: true,
+            agentName: agent.displayName,
+            taskTitle: title,
+          },
+          userId: agent.id,
+          projectId: column.projectId,
+          taskId: task.id,
+        },
+      });
+    } catch (err) {
+      console.error('[Agent Tasks] Failed to log activity:', err);
+    }
+
+    console.log(`[Agent Tasks] Agent ${agent.username} created task "${title}" in ${column.name}`);
+
+    return NextResponse.json({
+      success: true,
+      task: {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        position: task.position,
+        dueDate: task.dueDate?.toISOString() || null,
+        columnId: task.columnId,
+        columnName: task.column.name,
+        projectId: task.column.project.id,
+        projectName: task.column.project.name,
+        subtasks: task.subtasks,
+        assignee: task.assignee,
+        createdAt: task.createdAt.toISOString(),
+      },
+    }, { status: 201 });
+  } catch (error) {
+    console.error('[Agent Tasks] Error creating task:', error);
+    return NextResponse.json(
+      { error: 'Failed to create task' },
       { status: 500 }
     );
   }

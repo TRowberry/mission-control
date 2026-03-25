@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Bot, Settings, Folder, Plus, Trash2, Shield, User, Eye, CheckCircle } from 'lucide-react';
+import { X, Bot, Settings, Folder, Plus, Trash2, Shield, User, Eye, CheckCircle, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import MemorySettingsTab from './MemorySettingsTab';
 
 interface Agent {
   id: string;
@@ -38,7 +39,7 @@ interface AgentSettingsModalProps {
   onClose: () => void;
 }
 
-type Tab = 'about' | 'projects';
+type Tab = 'about' | 'projects' | 'memory';
 
 const roleIcons: Record<string, typeof Shield> = {
   admin: Shield,
@@ -267,11 +268,27 @@ export default function AgentSettingsModal({
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('memory')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
+              activeTab === 'memory'
+                ? 'text-white border-b-2 border-blue-500'
+                : 'text-gray-400 hover:text-gray-200'
+            )}
+          >
+            <Brain className="w-4 h-4" />
+            Memory
+          </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'about' ? (
+          {activeTab === 'memory' ? (
+            <div className="p-4">
+              <MemorySettingsTab agentId={agent.id} agentName={agent.displayName} />
+            </div>
+          ) : activeTab === 'about' ? (
             <div className="p-4 space-y-4">
               <div className="bg-[#2B2D31] rounded-lg p-4">
                 <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">

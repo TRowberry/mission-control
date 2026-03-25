@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Upload, Image as ImageIcon, Check, X, Eye, Plus, Users } from 'lucide-react';
+import { Upload, Image as ImageIcon, Film, Check, X, Eye, Plus, Users, Maximize2 } from 'lucide-react';
 import { ImageReviewer } from './ImageReviewer';
+import { VideoReviewer } from './VideoReviewer';
 import { AnnotationSidebar } from './AnnotationSidebar';
 import { ReviewerAssignment } from './ReviewerAssignment';
 
@@ -67,6 +68,7 @@ interface TaskReviewPanelProps {
   taskId: string;
   reviewItems: ReviewItem[];
   currentUserId?: string;
+  fullscreen?: boolean;
   onUpload?: (file: File) => Promise<void>;
   onAnnotationCreate?: (reviewItemId: string, annotation: { type: string; x: number; y: number; content: string }) => Promise<void>;
   onAnnotationResolve?: (annotationId: string, resolved: boolean) => Promise<void>;
@@ -76,12 +78,15 @@ interface TaskReviewPanelProps {
   onRemoveReviewer?: (reviewItemId: string, userId: string) => Promise<void>;
   onApprove?: (reviewItemId: string) => Promise<void>;
   onReject?: (reviewItemId: string, reason?: string) => Promise<void>;
+  onViewModeChange?: (mode: 'grid' | 'review') => void;
+  onPopOut?: () => void;
 }
 
 export function TaskReviewPanel({
   taskId,
   reviewItems,
   currentUserId,
+  fullscreen = false,
   onUpload,
   onAnnotationCreate,
   onAnnotationResolve,
@@ -91,13 +96,21 @@ export function TaskReviewPanel({
   onRemoveReviewer,
   onApprove,
   onReject,
+  onViewModeChange,
+  onPopOut,
 }: TaskReviewPanelProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     reviewItems.length > 0 ? reviewItems[0].id : null
   );
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'review'>('grid');
+  const [viewMode, setViewModeState] = useState<'grid' | 'review'>('grid');
+  
+  // Wrapper to notify parent of view mode changes
+  const setViewMode = (mode: 'grid' | 'review') => {
+    setViewModeState(mode);
+    onViewModeChange?.(mode);
+  };
 
   // Preserve selection when reviewItems changes (e.g., after adding annotation)
   const selectedItem = reviewItems.find((item) => item.id === selectedItemId);
@@ -169,7 +182,7 @@ export function TaskReviewPanel({
             <span className="text-sm">Upload</span>
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm,video/quicktime"
               className="hidden"
               onChange={handleFileSelect}
               disabled={isUploading}
@@ -184,8 +197,8 @@ export function TaskReviewPanel({
             onDragOver={handleDragOver}
           >
             <Upload className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-400 mb-1">Drop an image here or click Upload</p>
-            <p className="text-sm text-zinc-600">PNG, JPG, GIF up to 10MB</p>
+            <p className="text-zinc-400 mb-1">Drop a file here or click Upload</p>
+            <p className="text-sm text-zinc-600">Images or videos up to 100MB</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -200,12 +213,38 @@ export function TaskReviewPanel({
               >
                 {/* Thumbnail - use thumbnailUrl if available, fall back to full url */}
                 <div className="aspect-video relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.thumbnailUrl || item.url}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {item.type === 'video' ? (
+                    // Video thumbnail
+                    <>
+                      {item.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.thumbnailUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <video
+                          src={item.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          preload="metadata"
+                        />
+                      )}
+                      {/* Video indicator */}
+                      <div className="absolute top-1 right-1 bg-black/60 rounded px-1.5 py-0.5">
+                        <Film className="w-3 h-3 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    // Image thumbnail
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.thumbnailUrl || item.url}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Eye className="w-8 h-8 text-white" />
@@ -236,10 +275,10 @@ export function TaskReviewPanel({
               onDragOver={handleDragOver}
             >
               <Plus className="w-8 h-8 text-zinc-600 mb-1" />
-              <span className="text-sm text-zinc-600">Add Image</span>
+              <span className="text-sm text-zinc-600">Add Media</span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,video/mp4,video/webm,video/quicktime"
                 className="hidden"
                 onChange={handleFileSelect}
                 disabled={isUploading}
@@ -253,7 +292,7 @@ export function TaskReviewPanel({
 
   // Review view - full image with annotations
   return (
-    <div className="bg-zinc-900 rounded-lg">
+    <div className={`bg-zinc-900 rounded-lg ${fullscreen ? 'h-full flex flex-col' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-zinc-800">
         <div className="flex items-center gap-3">
@@ -270,6 +309,16 @@ export function TaskReviewPanel({
         </div>
 
         <div className="flex items-center gap-2">
+          {onPopOut && (
+            <button
+              onClick={onPopOut}
+              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 text-sm"
+              title="Open in fullscreen modal"
+            >
+              <Maximize2 className="w-4 h-4" />
+              Expand
+            </button>
+          )}
           {onStatusChange && selectedItem.status !== 'approved' && (
             <button
               onClick={() => onStatusChange(selectedItem.id, 'approved')}
@@ -292,16 +341,26 @@ export function TaskReviewPanel({
       </div>
 
       {/* Content */}
-      <div className="flex h-[600px] overflow-visible">
-        {/* Image viewer */}
-        <div className="flex-1 p-4 overflow-visible">
-          <ImageReviewer
-            src={selectedItem.url}
-            annotations={selectedItem.annotations}
-            selectedAnnotationId={selectedAnnotationId}
-            onAnnotationSelect={setSelectedAnnotationId}
-            onAnnotationCreate={onAnnotationCreate ? (data) => onAnnotationCreate(selectedItem.id, data) : undefined}
-          />
+      <div className={`flex overflow-hidden ${fullscreen ? 'flex-1' : 'h-[600px]'}`}>
+        {/* Media viewer - switch based on type */}
+        <div className="flex-1 min-w-0 p-4 overflow-hidden">
+          {selectedItem.type === 'video' ? (
+            <VideoReviewer
+              src={selectedItem.url}
+              annotations={selectedItem.annotations}
+              selectedAnnotationId={selectedAnnotationId}
+              onAnnotationSelect={setSelectedAnnotationId}
+              onAnnotationCreate={onAnnotationCreate ? (data) => onAnnotationCreate(selectedItem.id, data) : undefined}
+            />
+          ) : (
+            <ImageReviewer
+              src={selectedItem.url}
+              annotations={selectedItem.annotations}
+              selectedAnnotationId={selectedAnnotationId}
+              onAnnotationSelect={setSelectedAnnotationId}
+              onAnnotationCreate={onAnnotationCreate ? (data) => onAnnotationCreate(selectedItem.id, data) : undefined}
+            />
+          )}
         </div>
 
         {/* Sidebar */}

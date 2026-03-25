@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { withAuth, AuthUser } from '@/lib/modules/api/middleware';
 import { ok, created, badRequest, notFound, forbidden, serverError } from '@/lib/modules/api/response';
+import { handleApprovalReply } from '@/lib/modules/agents/approval-reply-handler';
+import { getOpenClawGatewayUrl } from '@/lib/llm-providers';
 
 // OpenClaw gateway config (for Rico)
-const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'http://10.0.0.108:18789';
+const OPENCLAW_GATEWAY_URL = getOpenClawGatewayUrl();
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 
 // Wake an agent via webhook or OpenClaw gateway
@@ -293,6 +295,17 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
         message.id,
         agent.webhookUrl
       );
+    }
+  }
+
+  // Check if this is a reply to an approval request
+  if (replyToId) {
+    const approvalResult = await handleApprovalReply(
+      { id: message.id, content: message.content, replyToId, authorId: user.id },
+      { id: user.id, username: user.username, displayName: user.displayName, isAgent: false }
+    );
+    if (approvalResult.handled) {
+      console.log(`[Message] Processed approval reply: ${approvalResult.result} for run ${approvalResult.runId}`);
     }
   }
 

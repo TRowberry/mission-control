@@ -1,0 +1,1 @@
+ALTER TABLE "AgentMemory" ADD COLUMN IF NOT EXISTS "userId" TEXT;

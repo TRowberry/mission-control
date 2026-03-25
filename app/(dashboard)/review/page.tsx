@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload } from 'lucide-react';
+import { Upload, Film, Image as ImageIcon } from 'lucide-react';
 import { ImageReviewer } from '@/components/review/ImageReviewer';
+import { VideoReviewer } from '@/components/review/VideoReviewer';
 import { AnnotationSidebar } from '@/components/review/AnnotationSidebar';
 
 interface Annotation {
@@ -12,6 +13,8 @@ interface Annotation {
   y: number | null;
   width?: number | null;
   height?: number | null;
+  pathData?: string | null;
+  timestamp?: number | null;
   content: string;
   resolved: boolean;
   color: string;
@@ -35,11 +38,27 @@ interface Annotation {
 
 interface ReviewItem {
   id: string;
-  type: string;
+  type: string; // 'image' | 'video'
   url: string;
   name: string;
   status: string;
   annotations: Annotation[];
+}
+
+// Helper to determine media type from filename/URL
+function getMediaType(filename: string, mimeType?: string): 'image' | 'video' {
+  const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+  const lowerName = filename.toLowerCase();
+  
+  // Check by extension
+  for (const ext of videoExtensions) {
+    if (lowerName.endsWith(ext)) return 'video';
+  }
+  
+  // Check by MIME type if provided
+  if (mimeType?.startsWith('video/')) return 'video';
+  
+  return 'image';
 }
 
 export default function ReviewPage() {
@@ -87,7 +106,10 @@ export default function ReviewPage() {
       });
 
       if (!uploadRes.ok) throw new Error('Upload failed');
-      const { url } = await uploadRes.json();
+      const uploadData = await uploadRes.json();
+      
+      // Determine media type
+      const mediaType = getMediaType(file.name, file.type);
 
       // Create review item
       const createRes = await fetch('/api/review', {
@@ -95,8 +117,9 @@ export default function ReviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: file.name,
-          url,
-          type: 'image',
+          url: uploadData.url,
+          thumbnailUrl: uploadData.thumbnailUrl,
+          type: mediaType,
         }),
       });
 
@@ -108,6 +131,9 @@ export default function ReviewPage() {
     } catch (error) {
       console.error('Failed to upload:', error);
     }
+    
+    // Reset input so same file can be re-uploaded
+    e.target.value = '';
   }, []);
 
   // Handle annotation creation
@@ -117,7 +143,10 @@ export default function ReviewPage() {
     y: number; 
     width?: number;
     height?: number;
+    pathData?: string;
+    timestamp?: number;
     content: string;
+    color: string;
   }) => {
     if (!selectedItemId) return;
 
@@ -207,10 +236,10 @@ export default function ReviewPage() {
         <h1 className="text-xl font-semibold text-white">Media Review</h1>
         <label className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition-colors">
           <Upload className="w-4 h-4" />
-          <span>Upload Image</span>
+          <span>Upload Media</span>
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/quicktime"
             className="hidden"
             onChange={handleUpload}
           />
@@ -225,7 +254,7 @@ export default function ReviewPage() {
             {reviewItems.length === 0 ? (
               <div className="p-4 text-center text-zinc-500">
                 <p>No review items yet.</p>
-                <p className="text-sm mt-1">Upload an image to get started.</p>
+                <p className="text-sm mt-1">Upload an image or video to get started.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -239,13 +268,32 @@ export default function ReviewPage() {
                     }`}
                     onClick={() => setSelectedItemId(item.id)}
                   >
-                    <div className="aspect-video rounded overflow-hidden bg-zinc-900 mb-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.url}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="aspect-video rounded overflow-hidden bg-zinc-900 mb-2 relative">
+                      {item.type === 'video' ? (
+                        <>
+                          <video
+                            src={item.url}
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
+                          <div className="absolute top-1 right-1 bg-black/60 rounded px-1.5 py-0.5">
+                            <Film className="w-3 h-3 text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.url}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-1 right-1 bg-black/60 rounded px-1.5 py-0.5">
+                            <ImageIcon className="w-3 h-3 text-white" />
+                          </div>
+                        </>
+                      )}
                     </div>
                     <p className="text-sm text-white truncate">{item.name}</p>
                     <p className="text-xs text-zinc-500">
@@ -261,15 +309,25 @@ export default function ReviewPage() {
         {/* Main content */}
         {selectedItem ? (
           <>
-            {/* Image viewer */}
+            {/* Media viewer - switch based on type */}
             <div className="flex-1 p-4">
-              <ImageReviewer
-                src={selectedItem.url}
-                annotations={selectedItem.annotations}
-                selectedAnnotationId={selectedAnnotationId}
-                onAnnotationSelect={setSelectedAnnotationId}
-                onAnnotationCreate={handleAnnotationCreate}
-              />
+              {selectedItem.type === 'video' ? (
+                <VideoReviewer
+                  src={selectedItem.url}
+                  annotations={selectedItem.annotations}
+                  selectedAnnotationId={selectedAnnotationId}
+                  onAnnotationSelect={setSelectedAnnotationId}
+                  onAnnotationCreate={handleAnnotationCreate}
+                />
+              ) : (
+                <ImageReviewer
+                  src={selectedItem.url}
+                  annotations={selectedItem.annotations}
+                  selectedAnnotationId={selectedAnnotationId}
+                  onAnnotationSelect={setSelectedAnnotationId}
+                  onAnnotationCreate={handleAnnotationCreate}
+                />
+              )}
             </div>
 
             {/* Annotation sidebar */}
@@ -285,7 +343,7 @@ export default function ReviewPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-zinc-500">
               <p>Select an item to review</p>
-              <p className="text-sm mt-1">or upload a new image</p>
+              <p className="text-sm mt-1">or upload a new image or video</p>
             </div>
           </div>
         )}

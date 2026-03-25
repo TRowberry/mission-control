@@ -1,0 +1,2 @@
+ALTER TABLE "AgentMemory" ADD COLUMN IF NOT EXISTS "sessionId" TEXT;
+ALTER TABLE "AgentMemory" ADD COLUMN IF NOT EXISTS "messageId" TEXT;

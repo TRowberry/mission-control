@@ -1,0 +1,256 @@
+import prisma from '@/lib/db';
+import { User, AgentConfig } from '@prisma/client';
+import { runAgentInDocker, agentImageExists, buildAgentImage } from './docker-runner';
+
+interface LLMResponse {
+  content: string;
+  tokensUsed?: number;
+}
+
+interface RunOptions {
+  useDocker?: boolean;  // Default: auto (use Docker if available)
+  input?: string;
+}
+
+/**
+ * Run an agent execution
+ * 
+ * @param runId - The AgentRun record ID
+ * @param agent - The agent User record
+ * @param config - The AgentConfig record
+ * @param options - Execution options
+ */
+export async function runAgent(
+  runId: string,
+  agent: User,
+  config: AgentConfig,
+  options: RunOptions = {}
+): Promise<void> {
+  // Determine execution mode
+  let useDocker = options.useDocker;
+  
+  if (useDocker === undefined) {
+    // Auto-detect: use Docker if image exists and dockerImage is set
+    useDocker = config.dockerImage ? await agentImageExists() : false;
+  }
+
+  if (useDocker) {
+    // Run in isolated Docker container
+    return runAgentInDocker({
+      runId,
+      agent,
+      config,
+      input: options.input,
+    });
+  }
+
+  // Fall back to direct execution (for development/testing)
+  return runAgentDirect(runId, agent, config, options.input);
+}
+
+/**
+ * Direct execution (non-containerized) - for development/testing
+ */
+async function runAgentDirect(
+  runId: string,
+  agent: User,
+  config: AgentConfig,
+  input?: string
+): Promise<void> {
+  const startTime = Date.now();
+  
+  try {
+    // Update run status to running
+    await prisma.agentRun.update({
+      where: { id: runId },
+      data: { 
+        status: 'running',
+        startedAt: new Date(),
+      },
+    });
+
+    // Get the run details
+    const run = await prisma.agentRun.findUnique({
+      where: { id: runId },
+    });
+
+    if (!run) {
+      throw new Error('Run not found');
+    }
+
+    // Build the prompt
+    const systemPrompt = config.systemPrompt || 'You are a helpful AI assistant.';
+    const userPrompt = input || run.input || 'Execute your primary task.';
+
+    // Call the LLM
+    const llmResponse = await callLLM(config, systemPrompt, userPrompt);
+
+    // Parse actions from response
+    const actions = parseActions(llmResponse.content);
+
+    // Update run with results
+    const durationMs = Date.now() - startTime;
+    await prisma.agentRun.update({
+      where: { id: runId },
+      data: {
+        status: 'completed',
+        output: llmResponse.content,
+        actionsCount: actions.length,
+        actionsRun: actions.length,
+        tokensUsed: llmResponse.tokensUsed || 0,
+        durationMs,
+        completedAt: new Date(),
+      },
+    });
+
+    // Update agent config stats
+    await prisma.agentConfig.update({
+      where: { userId: agent.id },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus: 'completed',
+        runCount: { increment: 1 },
+        totalTokensUsed: { increment: llmResponse.tokensUsed || 0 },
+      },
+    });
+
+    // Log actions
+    for (const action of actions) {
+      await prisma.agentActionLog.create({
+        data: {
+          agentId: agent.id,
+          actionType: action.type,
+          targetId: action.targetId,
+          payload: JSON.stringify(action.payload),
+          status: 'executed',
+          tokensUsed: Math.floor((llmResponse.tokensUsed || 0) / actions.length),
+        },
+      });
+    }
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const durationMs = Date.now() - startTime;
+
+    await prisma.agentRun.update({
+      where: { id: runId },
+      data: {
+        status: 'failed',
+        errorMessage,
+        durationMs,
+        completedAt: new Date(),
+      },
+    });
+
+    await prisma.agentConfig.update({
+      where: { userId: agent.id },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus: 'failed',
+        runCount: { increment: 1 },
+      },
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Call the configured LLM provider
+ */
+async function callLLM(
+  config: AgentConfig,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<LLMResponse> {
+  const provider = config.llmProvider || 'ollama';
+  const model = config.llmModel || 'llama3.2';
+  const endpoint = config.llmEndpoint || 'http://10.0.0.121:11434';
+
+  if (provider === 'ollama') {
+    return callOllama(endpoint, model, systemPrompt, userPrompt);
+  }
+
+  // Add more providers here (OpenAI, Anthropic, etc.)
+  throw new Error(`Unsupported LLM provider: ${provider}`);
+}
+
+/**
+ * Call Ollama API
+ */
+async function callOllama(
+  endpoint: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<LLMResponse> {
+  const response = await fetch(`${endpoint}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt: userPrompt,
+      system: systemPrompt,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama request failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  
+  return {
+    content: data.response || '',
+    tokensUsed: (data.prompt_eval_count || 0) + (data.eval_count || 0),
+  };
+}
+
+/**
+ * Parse structured actions from LLM response
+ */
+interface ParsedAction {
+  type: string;
+  targetId?: string;
+  payload?: Record<string, unknown>;
+}
+
+function parseActions(content: string): ParsedAction[] {
+  const actions: ParsedAction[] = [];
+  
+  const actionRegex = /ACTION:\s*(\w+)(?:\s*TARGET:\s*(\S+))?(?:\s*DATA:\s*(\{[^}]+\}))?/gi;
+  
+  let match;
+  while ((match = actionRegex.exec(content)) !== null) {
+    const action: ParsedAction = {
+      type: match[1].toLowerCase(),
+    };
+    
+    if (match[2]) {
+      action.targetId = match[2];
+    }
+    
+    if (match[3]) {
+      try {
+        action.payload = JSON.parse(match[3]);
+      } catch {
+        // Invalid JSON, skip payload
+      }
+    }
+    
+    actions.push(action);
+  }
+  
+  if (actions.length === 0 && content.trim()) {
+    actions.push({
+      type: 'response',
+      payload: { content: content.trim() },
+    });
+  }
+  
+  return actions;
+}
+
+// Re-export Docker utilities
+export { buildAgentImage, agentImageExists };

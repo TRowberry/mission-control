@@ -17,55 +17,70 @@ datasource db {
 // ============================================
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  username      String   @unique
-  displayName   String
-  password      String   // bcrypt hashed
-  avatar        String?
-  status        String   @default("offline") // online, idle, dnd, offline
-  lastSeen      DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  displayName String
+  password    String // bcrypt hashed
+  avatar      String?
+  status      String   @default("offline") // online, idle, dnd, offline
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Agent-specific fields
-  isAgent       Boolean  @default(false)
-  apiKey        String?  @unique           // API key for agent auth
-  webhookUrl    String?                    // Optional webhook for push notifications
+  isAgent    Boolean @default(false)
+  apiKey     String? @unique // API key for agent auth
+  webhookUrl String? // Optional webhook for push notifications
 
   // Relations
   workspaces    WorkspaceMember[]
   messages      Message[]
   reactions     Reaction[]
-  tasks         Task[]           @relation("AssignedTasks")
-  createdTasks  Task[]           @relation("CreatedTasks")
-  invitesSent   Invite[]         @relation("InvitesSent")
+  tasks         Task[]            @relation("AssignedTasks")
+  createdTasks  Task[]            @relation("CreatedTasks")
+  invitesSent   Invite[]          @relation("InvitesSent")
   mentions      Mention[]
   notifications Notification[]
   channelReads  ChannelRead[]
-  dmsAsUser1    DirectMessage[]  @relation("DMUser1")
-  dmsAsUser2    DirectMessage[]  @relation("DMUser2")
-  
+  dmsAsUser1    DirectMessage[]   @relation("DMUser1")
+  dmsAsUser2    DirectMessage[]   @relation("DMUser2")
+
   // Agent project access (when this user is an agent)
-  projectAccess  AgentProjectAccess[] @relation("AgentAccess")
+  projectAccess       AgentProjectAccess[] @relation("AgentAccess")
   // Access grants made by this user
-  accessGrants   AgentProjectAccess[] @relation("GrantedAccess")
+  accessGrants        AgentProjectAccess[] @relation("GrantedAccess")
   // Activity feed
-  activities     Activity[]
+  activities          Activity[]
   // Cycles owned by this user
-  cycles         Cycle[]
+  cycles              Cycle[]
   // Modules led by this user
-  modules        Module[]
+  modules             Module[]
   // Task subscriptions
-  taskSubscriptions TaskSubscription[]
+  taskSubscriptions   TaskSubscription[]
   // Pages created by this user
-  pages              Page[]
+  pages               Page[]
   // Media review relations
-  uploadedReviews    ReviewItem[]       @relation("UploadedReviews")
-  authoredAnnotations Annotation[]      @relation("AuthoredAnnotations")
-  annotationReplies  AnnotationReply[]  @relation("AuthoredAnnotationReplies")
-  reviewAssignments  ReviewAssignment[] @relation("ReviewAssignments")
-  uploadedVersions   ReviewItemVersion[] @relation("UploadedReviewVersions")
+  uploadedReviews     ReviewItem[]         @relation("UploadedReviews")
+  authoredAnnotations Annotation[]         @relation("AuthoredAnnotations")
+  annotationReplies   AnnotationReply[]    @relation("AuthoredAnnotationReplies")
+  reviewAssignments   ReviewAssignment[]   @relation("ReviewAssignments")
+  uploadedVersions    ReviewItemVersion[]  @relation("UploadedReviewVersions")
+  qaTestRuns          QaTestRun[]          @relation("QaTestRuns")
+
+  // Agent management
+  agentConfig     AgentConfig?
+  agentActionLogs AgentActionLog[]
+  approvedActions AgentActionLog[] @relation("ActionApprover")
+  
+  // Agent runs
+  agentRuns       AgentRun[] @relation("AgentRuns")
+  triggeredRuns   AgentRun[] @relation("RunTriggers")
+  
+  // Agent extended memory
+  agentMemories      AgentMemory[]      @relation("AgentMemories")
+  agentEntities      AgentEntity[]      @relation("AgentEntities")
+  agentRelationships AgentRelationship[] @relation("AgentRelationships")
 
   @@index([email])
   @@index([username])
@@ -83,8 +98,8 @@ model Invite {
   usedAt      DateTime?
   createdAt   DateTime  @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  invitedBy   User      @relation("InvitesSent", fields: [invitedById], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitesSent", fields: [invitedById], references: [id])
 
   @@index([token])
   @@index([email])
@@ -104,25 +119,26 @@ model Workspace {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  members     WorkspaceMember[]
-  channels    Channel[]
-  projects    Project[]
-  invites     Invite[]
-  pages       Page[]
+  members  WorkspaceMember[]
+  channels Channel[]
+  projects Project[]
+  invites  Invite[]
+  pages        Page[]
+  llmProviders LLMProvider[]
 
   @@index([slug])
 }
 
 model WorkspaceMember {
-  id          String   @id @default(cuid())
-  role        String   @default("member") // owner, admin, member, guest
-  joinedAt    DateTime @default(now())
-  
+  id       String   @id @default(cuid())
+  role     String   @default("member") // owner, admin, member, guest
+  joinedAt DateTime @default(now())
+
   userId      String
   workspaceId String
-  
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@index([userId])
@@ -147,7 +163,7 @@ model Channel {
 
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
   messages      Message[]
   threads       Thread[]
   readStates    ChannelRead[]
@@ -161,12 +177,12 @@ model Channel {
 model ChannelRead {
   id         String   @id @default(cuid())
   lastReadAt DateTime @default(now())
-  
-  userId     String
-  channelId  String
-  
-  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel    Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  userId    String
+  channelId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@unique([userId, channelId])
   @@index([userId])
@@ -180,15 +196,15 @@ model DirectMessage {
   updatedAt DateTime @updatedAt
 
   // The two participants
-  user1Id   String
-  user2Id   String
-  
+  user1Id String
+  user2Id String
+
   // Link to channel (type="dm") for messages
-  channelId String   @unique
-  
-  user1     User    @relation("DMUser1", fields: [user1Id], references: [id], onDelete: Cascade)
-  user2     User    @relation("DMUser2", fields: [user2Id], references: [id], onDelete: Cascade)
-  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId String @unique
+
+  user1   User    @relation("DMUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2   User    @relation("DMUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // Ensure unique pair (order-independent via API logic)
   @@unique([user1Id, user2Id])
@@ -210,12 +226,12 @@ model Message {
   threadId  String?
   replyToId String?
 
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  thread    Thread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   Message[] @relation("MessageReplies")
-  
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channel Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  thread  Thread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  replyTo Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReplies")
+
   reactions   Reaction[]
   attachments Attachment[]
   mentions    Mention[]
@@ -232,24 +248,24 @@ model Mention {
   messageId String
   userId    String
 
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([userId])
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  type      String   // mention, reply, dm, system, task_assigned
+  id        String    @id @default(cuid())
+  type      String // mention, reply, dm, system, task_assigned
   title     String
   body      String?
-  read      Boolean  @default(false)
+  read      Boolean   @default(false)
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Optional links to related content
   messageId String?
@@ -268,9 +284,9 @@ model Thread {
   updatedAt DateTime @updatedAt
 
   channelId String
-  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  
-  messages  Message[]
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  messages Message[]
 
   @@index([channelId])
 }
@@ -283,8 +299,8 @@ model Reaction {
   userId    String
   messageId String
 
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@unique([userId, messageId, emoji])
   @@index([messageId])
@@ -294,7 +310,7 @@ model Attachment {
   id        String   @id @default(cuid())
   name      String
   url       String
-  type      String   // image, video, audio, file
+  type      String // image, video, audio, file
   size      Int
   createdAt DateTime @default(now())
 
@@ -309,22 +325,22 @@ model Attachment {
 // ============================================
 
 model AgentProjectAccess {
-  id        String   @id @default(cuid())
-  
-  agentId   String
-  agent     User     @relation("AgentAccess", fields: [agentId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  agentId String
+  agent   User   @relation("AgentAccess", fields: [agentId], references: [id], onDelete: Cascade)
+
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   // Permission level for future expansion
-  role      String   @default("member")  // "member" | "admin" | "readonly"
-  
+  role String @default("member") // "member" | "admin" | "readonly"
+
   grantedById String
   grantedBy   User   @relation("GrantedAccess", fields: [grantedById], references: [id])
-  
+
   createdAt DateTime @default(now())
-  
+
   @@unique([agentId, projectId])
   @@index([agentId])
   @@index([projectId])
@@ -347,7 +363,7 @@ model Project {
 
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
   columns     Column[]
   tags        Tag[]
   agentAccess AgentProjectAccess[]
@@ -374,8 +390,8 @@ model TaskType {
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  tasks     Task[]
+
+  tasks Task[]
 
   @@index([projectId])
 }
@@ -385,7 +401,7 @@ model State {
   id          String   @id @default(cuid())
   name        String
   description String?
-  group       String   // backlog, unstarted, started, completed, cancelled
+  group       String // backlog, unstarted, started, completed, cancelled
   color       String   @default("#6B7280")
   position    Int      @default(0)
   isDefault   Boolean  @default(false)
@@ -393,8 +409,8 @@ model State {
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  tasks     Task[]
+
+  tasks Task[]
 
   @@index([projectId])
 }
@@ -412,13 +428,13 @@ model Cycle {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  projectId   String
-  ownerId     String?
+  projectId String
+  ownerId   String?
 
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  owner       User?     @relation(fields: [ownerId], references: [id])
-  
-  tasks       Task[]
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner   User?   @relation(fields: [ownerId], references: [id])
+
+  tasks Task[]
 
   @@index([projectId])
   @@index([ownerId])
@@ -429,7 +445,7 @@ model Module {
   id              String    @id @default(cuid())
   name            String
   description     String?
-  status          String    @default("backlog")  // backlog, active, completed, cancelled
+  status          String    @default("backlog") // backlog, active, completed, cancelled
   archived        Boolean   @default(false)
   sortOrder       Int       @default(0)
   startDate       DateTime?
@@ -439,13 +455,13 @@ model Module {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  projectId   String
-  leadId      String?
+  projectId String
+  leadId    String?
 
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  lead        User?     @relation(fields: [leadId], references: [id])
-  
-  tasks       TaskModule[]
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lead    User?   @relation(fields: [leadId], references: [id])
+
+  tasks TaskModule[]
 
   @@index([projectId])
   @@index([leadId])
@@ -456,8 +472,8 @@ model TaskModule {
   taskId   String
   moduleId String
 
-  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@id([taskId, moduleId])
 }
@@ -467,13 +483,13 @@ model Column {
   name      String
   position  Int      @default(0)
   color     String?
-  limit     Int?     // WIP limit
+  limit     Int? // WIP limit
   createdAt DateTime @default(now())
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  tasks     Task[]
+
+  tasks Task[]
 
   @@index([projectId])
 }
@@ -484,7 +500,7 @@ model Task {
   description String?
   priority    String    @default("medium") // low, medium, high, urgent
   position    Int       @default(0)
-  estimate    Int?      // Story points or hours
+  estimate    Int? // Story points or hours
   isDraft     Boolean   @default(false)
   startDate   DateTime?
   dueDate     DateTime?
@@ -501,22 +517,22 @@ model Task {
   cycleId     String?
   parentId    String?
 
-  column      Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  createdBy   User      @relation("CreatedTasks", fields: [createdById], references: [id])
-  assignee    User?     @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
-  type        TaskType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
-  state       State?    @relation(fields: [stateId], references: [id], onDelete: SetNull)
-  cycle       Cycle?    @relation(fields: [cycleId], references: [id], onDelete: SetNull)
-  parent      Task?     @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Task[]    @relation("TaskHierarchy")
-  
-  tags        TaskTag[]
-  subtasks    Subtask[]
-  comments    Comment[]
-  activities  Activity[]
-  modules     TaskModule[]
+  column    Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("CreatedTasks", fields: [createdById], references: [id])
+  assignee  User?     @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  type      TaskType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  state     State?    @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  cycle     Cycle?    @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  parent    Task?     @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Task[]    @relation("TaskHierarchy")
+
+  tags          TaskTag[]
+  subtasks      Subtask[]
+  comments      Comment[]
+  activities    Activity[]
+  modules       TaskModule[]
   subscriptions TaskSubscription[]
-  reviewItems ReviewItem[]
+  reviewItems   ReviewItem[]
 
   @@index([columnId])
   @@index([assigneeId])
@@ -534,8 +550,8 @@ model Subtask {
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  taskId    String
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
 }
@@ -548,8 +564,8 @@ model Tag {
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  tasks     TaskTag[]
+
+  tasks TaskTag[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -559,8 +575,8 @@ model TaskTag {
   taskId String
   tagId  String
 
-  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([taskId, tagId])
 }
@@ -571,10 +587,10 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  taskId    String
-  authorId  String
+  taskId   String
+  authorId String
 
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
 }
@@ -582,17 +598,17 @@ model Comment {
 // Activity feed for projects/tasks
 model Activity {
   id        String   @id @default(cuid())
-  type      String   // task_created, subtask_completed, comment_added, etc.
-  data      Json?    // Extra context (subtaskTitle, etc.)
+  type      String // task_created, subtask_completed, comment_added, etc.
+  data      Json? // Extra context (subtaskTitle, etc.)
   createdAt DateTime @default(now())
 
   userId    String
   projectId String?
   taskId    String?
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@index([taskId])
@@ -606,8 +622,8 @@ model TaskSubscription {
   taskId    String
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@id([userId, taskId])
   @@unique([userId, taskId])
@@ -615,26 +631,26 @@ model TaskSubscription {
 
 // Documentation/Wiki Pages
 model Page {
-  id          String   @id @default(cuid())
-  title       String
-  icon        String?
-  coverImage  String?
-  content     Json?    // Block-based content
-  archived    Boolean  @default(false)
-  isPublic    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  title      String
+  icon       String?
+  coverImage String?
+  content    Json? // Block-based content
+  archived   Boolean  @default(false)
+  isPublic   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   createdById String
   workspaceId String
   projectId   String?
   parentId    String?
 
-  createdBy   User      @relation(fields: [createdById], references: [id])
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  parent      Page?     @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Page[]    @relation("PageHierarchy")
+  createdBy User      @relation(fields: [createdById], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  parent    Page?     @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Page[]    @relation("PageHierarchy")
 
   @@index([createdById])
   @@index([workspaceId])
@@ -649,27 +665,27 @@ model Page {
 // Review items (images/videos uploaded for review)
 model ReviewItem {
   id           String   @id @default(cuid())
-  type         String   // 'image' | 'video'
-  url          String   // File URL
-  thumbnailUrl String?  // Thumbnail URL (generated by FFmpeg)
+  type         String // 'image' | 'video'
+  url          String // File URL
+  thumbnailUrl String? // Thumbnail URL (generated by FFmpeg)
   name         String
-  duration    Float?   // Video duration in seconds
-  width       Int?
-  height      Int?
-  version     Int      @default(1)
-  status      String   @default("pending") // pending | in_review | approved | rejected
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  duration     Float? // Video duration in seconds
+  width        Int?
+  height       Int?
+  version      Int      @default(1)
+  status       String   @default("pending") // pending | in_review | approved | rejected
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  taskId       String?
-  task         Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   uploadedById String
-  uploadedBy   User     @relation("UploadedReviews", fields: [uploadedById], references: [id])
+  uploadedBy   User   @relation("UploadedReviews", fields: [uploadedById], references: [id])
 
-  annotations  Annotation[]
-  reviewers    ReviewAssignment[]
-  versions     ReviewItemVersion[]
+  annotations Annotation[]
+  reviewers   ReviewAssignment[]
+  versions    ReviewItemVersion[]
 
   @@index([taskId])
   @@index([uploadedById])
@@ -678,36 +694,37 @@ model ReviewItem {
 
 // Annotations on review items (pins, shapes, comments)
 model Annotation {
-  id          String   @id @default(cuid())
-  type        String   // 'pin' | 'rectangle' | 'circle' | 'arrow' | 'freehand'
+  id   String @id @default(cuid())
+  type String // 'pin' | 'rectangle' | 'circle' | 'arrow' | 'freehand'
 
   // Position (percentage 0-100 for responsive display)
-  x           Float?
-  y           Float?
-  width       Float?   // For rectangles
-  height      Float?
+  x      Float?
+  y      Float?
+  width  Float? // For rectangles
+  height Float?
 
   // For video annotations
-  timestamp   Float?   // Seconds into video
+  timestamp   Float? // Seconds into video
   frameNumber Int?
+  snapshotUrl String? // Extracted frame snapshot for video annotations
 
   // Drawing data (for freehand, arrows)
-  pathData    String?  // SVG path or JSON points
-  color       String   @default("#FF3B30")
+  pathData String? // SVG path or JSON points
+  color    String  @default("#FF3B30")
 
   // Comment content
-  content     String
-  resolved    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  content   String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   reviewItemId String
   reviewItem   ReviewItem @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
 
-  authorId    String
-  author      User     @relation("AuthoredAnnotations", fields: [authorId], references: [id])
+  authorId String
+  author   User   @relation("AuthoredAnnotations", fields: [authorId], references: [id])
 
-  replies     AnnotationReply[]
+  replies AnnotationReply[]
 
   @@index([reviewItemId])
   @@index([authorId])
@@ -715,15 +732,15 @@ model Annotation {
 
 // Replies to annotations (threaded comments)
 model AnnotationReply {
-  id           String     @id @default(cuid())
-  content      String
-  createdAt    DateTime   @default(now())
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
 
   annotationId String
   annotation   Annotation @relation(fields: [annotationId], references: [id], onDelete: Cascade)
 
-  authorId     String
-  author       User       @relation("AuthoredAnnotationReplies", fields: [authorId], references: [id])
+  authorId String
+  author   User   @relation("AuthoredAnnotationReplies", fields: [authorId], references: [id])
 
   @@index([annotationId])
   @@index([authorId])
@@ -731,16 +748,16 @@ model AnnotationReply {
 
 // Reviewer assignments for review items
 model ReviewAssignment {
-  id           String     @id @default(cuid())
-  status       String     @default("pending") // pending | approved | rejected
-  reviewedAt   DateTime?
-  createdAt    DateTime   @default(now())
+  id         String    @id @default(cuid())
+  status     String    @default("pending") // pending | approved | rejected
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   reviewItemId String
   reviewItem   ReviewItem @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
 
-  userId       String
-  user         User       @relation("ReviewAssignments", fields: [userId], references: [id])
+  userId String
+  user   User   @relation("ReviewAssignments", fields: [userId], references: [id])
 
   @@unique([reviewItemId, userId])
   @@index([reviewItemId])
@@ -749,18 +766,329 @@ model ReviewAssignment {
 
 // Version history for review items
 model ReviewItemVersion {
-  id           String     @id @default(cuid())
-  version      Int
-  url          String
-  notes        String?
-  createdAt    DateTime   @default(now())
+  id        String   @id @default(cuid())
+  version   Int
+  url       String
+  notes     String?
+  createdAt DateTime @default(now())
 
   reviewItemId String
   reviewItem   ReviewItem @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
 
   uploadedById String
-  uploadedBy   User       @relation("UploadedReviewVersions", fields: [uploadedById], references: [id])
+  uploadedBy   User   @relation("UploadedReviewVersions", fields: [uploadedById], references: [id])
 
   @@index([reviewItemId])
   @@index([uploadedById])
+}
+
+// QA Test Run results
+model QaTestRun {
+  id           String   @id @default(cuid())
+  timestamp    DateTime @default(now())
+  passed       Boolean
+  totalTests   Int
+  passedTests  Int
+  failedTests  Int
+  suites       String?  @db.Text // JSON string of suite results
+  deployCommit String?
+  deployBranch String?
+
+  triggeredById String?
+  triggeredBy   User?   @relation("QaTestRuns", fields: [triggeredById], references: [id])
+
+  @@index([timestamp])
+  @@index([passed])
+}
+
+// ============================================
+// AGENT MANAGEMENT SYSTEM
+// ============================================
+
+// Extended configuration for agent users
+model AgentConfig {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Role & Behavior
+  role         String? // "Project Manager", "QA Tester", etc.
+  systemPrompt String? @db.Text // Custom system prompt
+
+  // LLM Configuration
+  llmProvider String  @default("ollama")
+  llmModel    String?
+  llmEndpoint String?
+
+  // Scheduling
+  triggerType          String  @default("manual") // "manual" | "scheduled" | "event"
+  cronSchedule         String?
+  scheduledTaskPrompt  String? @db.Text // Prompt to run on scheduled triggers (LLM agents)
+  scheduledCommand     String? @db.Text // Command to run on scheduled triggers (script agents)
+
+  // Capabilities
+  canSendMessages Boolean @default(true)
+  canEditTasks    Boolean @default(true)
+  canCreateTasks  Boolean @default(false)
+  canNotifyUsers  Boolean @default(true)
+
+  // Approval Settings
+  // JSON array of action types requiring approval (e.g., ["fetch", "code", "unknown"])
+  // If null, uses defaults: fetch, code, unknown
+  requireApprovalFor String? @db.Text
+
+  // Rate Limits
+  actionsPerMinute Int    @default(10)
+  actionsPerHour   Int    @default(100)
+  dailyTokenLimit  Int?
+  dailyCostLimit   Float?
+
+  // Docker Config
+  dockerImage    String?
+  memoryLimitMb  Int     @default(512)
+  cpuLimit       Float   @default(0.5)
+  timeoutSeconds Int     @default(300)
+
+  // Monitoring
+  lastRunAt       DateTime?
+  lastRunStatus   String?
+  runCount        Int       @default(0)
+  totalTokensUsed Int       @default(0)
+  totalCost       Float     @default(0)
+
+  // Memory Settings (Phase 3)
+  memoryEnabled        Boolean  @default(false)
+  memoryCategories     String?  @db.Text // JSON array: ["facts", "preferences", "relationships", "events"]
+  memoryDecayRate      Float    @default(0.1) // Decay multiplier per day
+  memoryMinImportance  Float    @default(0.3) // Minimum importance to retain
+  memoryInjectionCount Int      @default(5)   // Memories to inject per turn
+  memoryRetentionDays  Int      @default(90)  // Max days to keep memories
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([llmProvider])
+}
+
+// ============================================
+// AGENT EXTENDED MEMORY (Phase 1)
+// ============================================
+
+model AgentMemory {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     User     @relation("AgentMemories", fields: [agentId], references: [id], onDelete: Cascade)
+
+  content   String   @db.Text
+  summary   String?  @db.Text
+  embedding Unsupported("vector(768)")?
+  
+  category   String   @default("general") // facts, preferences, relationships, events
+  tier       String   @default("working") // working, short_term, long_term
+  importance Float    @default(0.5)
+  source     String   @default("conversation") // conversation, extraction, manual
+  
+  accessCount    Int      @default(0)
+  lastAccessedAt DateTime?
+  decayScore     Float    @default(1.0)
+  
+  isPinned    Boolean @default(false)
+  isArchived  Boolean @default(false)
+  
+  sessionId String?
+  messageId String?
+  userId    String?  // Associated user (who the memory is about)
+  
+  metadata  String?  @db.Text // JSON
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  entities  AgentMemoryEntity[]
+  
+  @@index([agentId])
+  @@index([category])
+  @@index([tier])
+  @@index([importance])
+}
+
+model AgentEntity {
+  id       String @id @default(cuid())
+  agentId  String
+  agent    User   @relation("AgentEntities", fields: [agentId], references: [id], onDelete: Cascade)
+
+  name        String
+  type        String   @default("person") // person, place, thing, concept, event
+  description String?
+  aliases     String[] @default([])
+  
+  metadata     String? @db.Text // JSON
+  mentionCount Int     @default(1)
+  lastSeenAt   DateTime @default(now())
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  memories      AgentMemoryEntity[]
+  relationships AgentRelationship[] @relation("EntityRelationships")
+  relatedTo     AgentRelationship[] @relation("RelatedEntities")
+  
+  @@unique([agentId, name, type])
+  @@index([agentId])
+  @@index([type])
+}
+
+model AgentMemoryEntity {
+  id        String @id @default(cuid())
+  memoryId  String
+  entityId  String
+  role      String? // subject, object, context, etc.
+  
+  memory    AgentMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  entity    AgentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([memoryId, entityId])
+  @@index([memoryId])
+  @@index([entityId])
+}
+
+model AgentRelationship {
+  id        String @id @default(cuid())
+  agentId   String
+  agent     User   @relation("AgentRelationships", fields: [agentId], references: [id], onDelete: Cascade)
+
+  fromEntityId String
+  toEntityId   String
+  fromEntity   AgentEntity @relation("EntityRelationships", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  toEntity     AgentEntity @relation("RelatedEntities", fields: [toEntityId], references: [id], onDelete: Cascade)
+  
+  relationType String // knows, works_with, located_at, part_of, etc.
+  strength     Float  @default(0.5)
+  
+  metadata  String? @db.Text // JSON
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([agentId, fromEntityId, toEntityId, relationType])
+  @@index([agentId])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+}
+
+// Logs of agent actions for audit/monitoring
+model AgentActionLog {
+  id      String @id @default(cuid())
+  agentId String
+  agent   User   @relation(fields: [agentId], references: [id])
+
+  actionType String // "send_dm", "post_channel", "update_task", etc.
+  targetId   String? // User/channel/task ID
+  payload    String? @db.Text // JSON payload
+  status     String // "pending_approval", "approved", "rejected", "executed", "failed"
+
+  tokensUsed Int?
+  cost       Float?
+
+  approvedById String?
+  approvedBy   User?     @relation("ActionApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  errorMessage String?
+
+  createdAt  DateTime  @default(now())
+  executedAt DateTime?
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([actionType])
+}
+
+// Agent Run - tracks individual agent execution sessions
+model AgentRun {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     User     @relation("AgentRuns", fields: [agentId], references: [id])
+  
+  // Trigger info
+  triggeredBy   String   // "manual", "scheduled", "event", "api"
+  triggeredById String?  // User who triggered (if manual/api)
+  triggerUser   User?    @relation("RunTriggers", fields: [triggeredById], references: [id])
+  
+  // Execution
+  status        String   @default("pending") // "pending", "running", "completed", "failed", "cancelled"
+  containerId   String?  // Docker container ID
+  
+  // Input/Output
+  input         String?  @db.Text // Input prompt/context
+  output        String?  @db.Text // Raw LLM output
+  
+  // Parsed actions
+  actionsCount  Int      @default(0)
+  actionsRun    Int      @default(0)
+  actionsFailed Int      @default(0)
+  
+  // Resource usage
+  tokensUsed    Int      @default(0)
+  cost          Float    @default(0)
+  durationMs    Int?
+  
+  // Timestamps
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  
+  // Error handling
+  errorMessage  String?  @db.Text
+  errorCode     String?
+  
+  // Logs
+  logs          String?  @db.Text // Execution logs
+  
+  // Metadata (parsed actions, parse method, approval queue, etc.)
+  metadata      String?  @db.Text
+  
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([triggeredBy])
+}
+
+
+
+// LLM Provider configuration for agents
+model LLMProvider {
+  id          String   @id @default(cuid())
+  name        String   // "ollama", "openai", "anthropic", "openclaw"
+  displayName String
+  endpoint    String?
+  apiKey      String?  // Encrypted in application layer
+  orgId       String?  // For OpenAI
+  isDefault   Boolean  @default(false)
+  isEnabled   Boolean  @default(true)
+  models      String[] // Available models
+  
+  // Cost tracking
+  costPerInputToken  Float?
+  costPerOutputToken Float?
+  
+  // Health
+  lastHealthCheck DateTime?
+  isHealthy       Boolean   @default(true)
+  healthMessage   String?
+  
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@index([isEnabled])
 }

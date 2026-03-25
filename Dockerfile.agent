@@ -1,0 +1,27 @@
+# Dockerfile.agent - Lightweight agent execution container
+FROM node:20-alpine
+
+WORKDIR /agent
+
+# Install curl for LLM API calls
+RUN apk add --no-cache curl jq
+
+# Copy agent runner script
+COPY agent-runner.js .
+
+# Environment variables (set at runtime)
+ENV AGENT_ID=""
+ENV RUN_ID=""
+ENV LLM_PROVIDER="ollama"
+ENV LLM_MODEL="llama3.2"
+ENV LLM_ENDPOINT="http://10.0.0.121:11434"
+ENV SYSTEM_PROMPT="You are a helpful AI assistant."
+ENV USER_PROMPT="Execute your primary task."
+ENV MC_API_URL="http://10.0.0.206:3000"
+ENV MC_API_KEY=""
+
+# Run as non-root
+RUN adduser -D agent
+USER agent
+
+CMD ["node", "agent-runner.js"]
