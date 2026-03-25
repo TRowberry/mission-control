@@ -40,8 +40,9 @@ COPY --from=builder /app/package-lock.json ./
 # Copy node_modules (production deps only - reinstall without dev deps)
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy custom server and agent runner
+# Copy custom server, scheduler, and agent runner
 COPY --from=builder --chown=nextjs:nodejs /app/server.js ./
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler.js ./
 COPY --from=builder --chown=nextjs:nodejs /app/agent-runner.js ./
 
 # Copy Next.js build output
