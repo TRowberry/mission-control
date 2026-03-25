@@ -2,7 +2,8 @@ import prisma from '@/lib/db';
 import { ActionHandler, ActionResult } from './index';
 
 export const postMessageAction: ActionHandler = async (config, input, context): Promise<ActionResult> => {
-  const { channelId, channel, message } = config;
+  const { channelId, channel, message, messageTemplate } = config;
+  const messageContent = message || messageTemplate; // Support both field names
 
   // Resolve channel - can be ID or slug
   const targetChannelId = channelId || channel;
@@ -25,7 +26,7 @@ export const postMessageAction: ActionHandler = async (config, input, context): 
   }
 
   // Resolve message template
-  const resolvedMessage = resolveTemplate(message || '', input);
+  const resolvedMessage = resolveTemplate(messageContent || '', input);
   if (!resolvedMessage.trim()) {
     throw new Error('Post message action requires a message');
   }
