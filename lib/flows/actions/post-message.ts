@@ -1,0 +1,78 @@
+import prisma from '@/lib/db';
+import { ActionHandler, ActionResult } from './index';
+
+export const postMessageAction: ActionHandler = async (config, input, context): Promise<ActionResult> => {
+  const { channelId, channel, message } = config;
+
+  // Resolve channel - can be ID or slug
+  const targetChannelId = channelId || channel;
+  if (!targetChannelId) {
+    throw new Error('Post message action requires a channel');
+  }
+
+  // Find channel
+  const targetChannel = await prisma.channel.findFirst({
+    where: {
+      OR: [
+        { id: targetChannelId },
+        { slug: targetChannelId },
+      ],
+    },
+  });
+
+  if (!targetChannel) {
+    throw new Error(`Channel not found: ${targetChannelId}`);
+  }
+
+  // Resolve message template
+  const resolvedMessage = resolveTemplate(message || '', input);
+  if (!resolvedMessage.trim()) {
+    throw new Error('Post message action requires a message');
+  }
+
+  // Create message as the agent
+  const newMessage = await prisma.message.create({
+    data: {
+      channelId: targetChannel.id,
+      authorId: context.agentId,
+      content: `<p>${escapeHtml(resolvedMessage)}</p>`,
+      type: 'text',
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          avatar: true,
+        },
+      },
+    },
+  });
+
+  return {
+    output: {
+      messageId: newMessage.id,
+      channelId: targetChannel.id,
+      content: resolvedMessage,
+    },
+  };
+};
+
+function resolveTemplate(template: string, data: any): string {
+  return template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+    const value = path.trim().split('.').reduce((obj: any, key: string) => obj?.[key], data);
+    if (value === undefined) return match;
+    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  });
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/\n/g, '<br>');
+}
