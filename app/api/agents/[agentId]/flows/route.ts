@@ -38,7 +38,7 @@ export const GET = withAnyAuthParams(async (
     },
   });
 
-  return ok(flows);
+  return ok({ flows });
 });
 
 /**
@@ -90,5 +90,5 @@ export const POST = withAnyAuthParams(async (
     },
   });
 
-  return created(flow);
+  return created({ flow });
 });

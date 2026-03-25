@@ -39,7 +39,7 @@ export const GET = withAnyAuthParams(async (
     return notFound('Flow not found');
   }
 
-  return ok(flow);
+  return ok({ flow });
 });
 
 /**
