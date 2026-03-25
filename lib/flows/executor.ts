@@ -44,9 +44,14 @@ export async function executeFlow(
   input: any,
   runId: string
 ): Promise<ExecutionResult> {
+  console.log('[Flow Executor] Starting flow:', flow.id, 'run:', runId);
+  console.log('[Flow Executor] Raw definition type:', typeof flow.definition);
+  
   const definition: FlowDefinition = typeof flow.definition === 'string'
     ? JSON.parse(flow.definition)
     : flow.definition;
+  
+  console.log('[Flow Executor] Parsed definition:', JSON.stringify(definition, null, 2));
 
   const { nodes, edges } = definition;
   const log: ExecutionLogEntry[] = [];
@@ -131,11 +136,13 @@ export async function executeFlow(
         // Execute action handler
         const handler = actionHandlers[node.type];
         if (!handler) {
+          console.error('[Flow Executor] Unknown action type:', node.type, 'Available:', Object.keys(actionHandlers));
           throw new Error(`Unknown action type: ${node.type}`);
         }
 
         // Node config can be in node.config or node.data depending on source
         const nodeConfig = node.data || (node as any).config || {};
+        console.log('[Flow Executor] Executing node:', node.id, 'type:', node.type, 'config:', JSON.stringify(nodeConfig));
         const result = await handler(nodeConfig, nodeInput, {
           flowId: flow.id,
           runId,
