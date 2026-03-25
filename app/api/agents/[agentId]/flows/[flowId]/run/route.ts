@@ -1,16 +1,16 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAgentParams, AuthAgent } from '@/lib/modules/api/middleware';
-import { ok, notFound, serverError } from '@/lib/modules/api/response';
+import { withAnyAuthParams, AuthActor, isAgent } from '@/lib/modules/api/middleware';
+import { ok, notFound, serverError, forbidden } from '@/lib/modules/api/response';
 import { executeFlow } from '@/lib/flows/executor';
 
 /**
  * POST /api/agents/[agentId]/flows/[flowId]/run
  * Execute a flow
  */
-export const POST = withAgentParams(async (
+export const POST = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const startTime = Date.now();
@@ -18,8 +18,8 @@ export const POST = withAgentParams(async (
   const body = await req.json().catch(() => ({}));
   const { input, triggeredBy: customTriggeredBy } = body;
 
-  if (agent.id !== agentId) {
-    return notFound('Flow not found');
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot run other agent flows');
   }
 
   // Get flow with agent
@@ -37,8 +37,8 @@ export const POST = withAgentParams(async (
   }
 
   // Determine triggeredBy
-  const triggeredBy = customTriggeredBy || 'api';
-  const triggerUserId = agent.id;
+  const triggeredBy = customTriggeredBy || (isAgent(actor) ? 'api' : 'manual');
+  const triggerUserId = actor.id;
 
   // Create run record
   const run = await prisma.agentFlowRun.create({

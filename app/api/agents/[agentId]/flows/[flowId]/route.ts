@@ -1,21 +1,21 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAgentParams, AuthAgent } from '@/lib/modules/api/middleware';
-import { ok, notFound } from '@/lib/modules/api/response';
+import { withAnyAuthParams, AuthActor, isAgent } from '@/lib/modules/api/middleware';
+import { ok, notFound, forbidden } from '@/lib/modules/api/response';
 
 /**
  * GET /api/agents/[agentId]/flows/[flowId]
  * Get flow details
  */
-export const GET = withAgentParams(async (
+export const GET = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId, flowId } = await params;
 
-  if (agent.id !== agentId) {
-    return notFound('Flow not found');
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot access other agent flows');
   }
 
   const flow = await prisma.agentFlow.findFirst({
@@ -46,16 +46,16 @@ export const GET = withAgentParams(async (
  * PATCH /api/agents/[agentId]/flows/[flowId]
  * Update a flow
  */
-export const PATCH = withAgentParams(async (
+export const PATCH = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId, flowId } = await params;
   const body = await req.json();
 
-  if (agent.id !== agentId) {
-    return notFound('Flow not found');
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot modify other agent flows');
   }
 
   // Check flow exists
@@ -103,15 +103,15 @@ export const PATCH = withAgentParams(async (
  * DELETE /api/agents/[agentId]/flows/[flowId]
  * Delete a flow
  */
-export const DELETE = withAgentParams(async (
+export const DELETE = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId, flowId } = await params;
 
-  if (agent.id !== agentId) {
-    return notFound('Flow not found');
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot delete other agent flows');
   }
 
   // Check flow exists

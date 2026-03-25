@@ -1,0 +1,101 @@
+const fs = require('fs');
+const path = require('path');
+
+const schemaPath = path.join(__dirname, 'prisma/schema.prisma');
+let schema = fs.readFileSync(schemaPath, 'utf8');
+
+// Add flow relations to User model after qaTestRuns line
+const flowRelations = `
+  // Flow relations
+  flows             AgentFlow[]
+  flowRunsTrigger   AgentFlowRun[]       @relation("FlowRunTrigger")`;
+
+schema = schema.replace(
+  /qaTestRuns\s+QaTestRun\[\]\s+@relation\("QaTestRuns"\)/,
+  `qaTestRuns          QaTestRun[]          @relation("QaTestRuns")${flowRelations}`
+);
+
+// Add flow models at the end
+const flowModels = `
+
+// ============================================
+// AGENT FLOWS
+// ============================================
+
+model AgentFlow {
+  id             String    @id @default(cuid())
+  agentId        String
+  name           String
+  description    String?
+  version        Int       @default(1)
+  isActive       Boolean   @default(false)
+  definition     String    // JSON string of nodes/edges
+  triggerType    String    @default("manual") // manual, scheduled, webhook, event
+  triggerConfig  String?   // JSON config for trigger
+  timeoutSeconds Int       @default(300)
+  maxRetries     Int       @default(0)
+  runCount       Int       @default(0)
+  lastRunAt      DateTime?
+  lastRunStatus  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  agent          User      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  runs           AgentFlowRun[]
+
+  @@index([agentId])
+}
+
+model AgentFlowRun {
+  id            String    @id @default(cuid())
+  flowId        String
+  triggeredBy   String    // user, scheduler, webhook, api
+  triggerUserId String?
+  status        String    @default("pending") // pending, running, success, failed, cancelled
+  input         String?   // JSON input data
+  output        String?   // JSON output data
+  executionLog  String?   // JSON execution trace
+  tokensUsed    Int       @default(0)
+  cost          Float     @default(0)
+  durationMs    Int?
+  errorMessage  String?
+  errorNodeId   String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  flow          AgentFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  triggerUser   User?     @relation("FlowRunTrigger", fields: [triggerUserId], references: [id])
+
+  @@index([flowId])
+  @@index([triggerUserId])
+}
+
+model ActionType {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  displayName      String
+  description      String?
+  category         String   @default("core") // core, integration, custom
+  icon             String?
+  color            String?
+  inputSchema      String   // JSON Schema
+  outputSchema     String   // JSON Schema
+  configSchema     String?  // JSON Schema for node config
+  isBuiltIn        Boolean  @default(true)
+  handler          String?  // Handler function name
+  requiresApproval Boolean  @default(false)
+  allowedRoles     String[] @default([])
+  isEnabled        Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+`;
+
+// Check if models already exist
+if (!schema.includes('model AgentFlow')) {
+  schema = schema.trimEnd() + flowModels;
+}
+
+fs.writeFileSync(schemaPath, schema);
+console.log('Schema updated successfully!');

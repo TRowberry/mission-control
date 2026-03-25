@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAgentParams, AuthAgent } from '@/lib/modules/api/middleware';
-import { ok, notFound } from '@/lib/modules/api/response';
+import { withAnyAuthParams, AuthActor, isAgent } from '@/lib/modules/api/middleware';
+import { ok, notFound, forbidden } from '@/lib/modules/api/response';
 
 /**
  * GET /api/agents/[agentId]/flows/[flowId]/runs
  * List flow run history
  */
-export const GET = withAgentParams(async (
+export const GET = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId, flowId } = await params;
@@ -17,8 +17,8 @@ export const GET = withAgentParams(async (
   const limit = parseInt(searchParams.get('limit') || '20');
   const cursor = searchParams.get('cursor');
 
-  if (agent.id !== agentId) {
-    return notFound('Flow not found');
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot access other agent flow runs');
   }
 
   // Verify flow exists and belongs to agent

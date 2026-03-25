@@ -1,22 +1,24 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAgentParams, AuthAgent } from '@/lib/modules/api/middleware';
-import { ok, notFound, badRequest, created } from '@/lib/modules/api/response';
+import { withAnyAuthParams, AuthActor, isAgent } from '@/lib/modules/api/middleware';
+import { ok, notFound, badRequest, created, forbidden } from '@/lib/modules/api/response';
 
 /**
  * GET /api/agents/[agentId]/flows
  * List all flows for an agent
+ * - Agents can only access their own flows
+ * - Users (admins) can access any agent's flows
  */
-export const GET = withAgentParams(async (
+export const GET = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId } = await params;
 
-  // Verify the agent is accessing their own flows
-  if (agent.id !== agentId) {
-    return notFound('Agent not found');
+  // Agents can only access their own flows
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot access other agent flows');
   }
 
   const flows = await prisma.agentFlow.findMany({
@@ -42,10 +44,12 @@ export const GET = withAgentParams(async (
 /**
  * POST /api/agents/[agentId]/flows
  * Create a new flow
+ * - Agents can only create flows for themselves
+ * - Users (admins) can create flows for any agent
  */
-export const POST = withAgentParams(async (
+export const POST = withAnyAuthParams(async (
   req: NextRequest,
-  agent: AuthAgent,
+  actor: AuthActor,
   params: Promise<Record<string, string>>
 ) => {
   const { agentId } = await params;
@@ -56,9 +60,9 @@ export const POST = withAgentParams(async (
     return badRequest('Name is required');
   }
 
-  // Verify the agent is creating flows for themselves
-  if (agent.id !== agentId) {
-    return notFound('Agent not found');
+  // Agents can only create flows for themselves
+  if (isAgent(actor) && actor.id !== agentId) {
+    return forbidden('Cannot create flows for other agents');
   }
 
   // Create default definition if not provided
