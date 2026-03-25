@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Bot, Settings, Folder, Plus, Trash2, Shield, User, Eye, CheckCircle, Brain } from 'lucide-react';
+import { X, Bot, Settings, Folder, Plus, Trash2, Shield, User, Eye, CheckCircle, Brain, GitBranch, History, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MemorySettingsTab from './MemorySettingsTab';
+import MemoryBrowserTab from './MemoryBrowserTab';
+import FlowsTab from './FlowsTab';
+import RunHistoryTab from './RunHistoryTab';
 
 interface Agent {
   id: string;
@@ -39,7 +42,7 @@ interface AgentSettingsModalProps {
   onClose: () => void;
 }
 
-type Tab = 'about' | 'projects' | 'memory';
+type Tab = 'about' | 'projects' | 'flows' | 'history' | 'memory' | 'browse';
 
 const roleIcons: Record<string, typeof Shield> = {
   admin: Shield,
@@ -269,6 +272,30 @@ export default function AgentSettingsModal({
             )}
           </button>
           <button
+            onClick={() => setActiveTab('flows')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
+              activeTab === 'flows'
+                ? 'text-white border-b-2 border-blue-500'
+                : 'text-gray-400 hover:text-gray-200'
+            )}
+          >
+            <GitBranch className="w-4 h-4" />
+            Flows
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
+              activeTab === 'history'
+                ? 'text-white border-b-2 border-blue-500'
+                : 'text-gray-400 hover:text-gray-200'
+            )}
+          >
+            <History className="w-4 h-4" />
+            History
+          </button>
+          <button
             onClick={() => setActiveTab('memory')}
             className={cn(
               'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
@@ -280,13 +307,37 @@ export default function AgentSettingsModal({
             <Brain className="w-4 h-4" />
             Memory
           </button>
+          <button
+            onClick={() => setActiveTab('browse')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
+              activeTab === 'browse'
+                ? 'text-white border-b-2 border-blue-500'
+                : 'text-gray-400 hover:text-gray-200'
+            )}
+          >
+            <Database className="w-4 h-4" />
+            Browse
+          </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'memory' ? (
+          {activeTab === 'flows' ? (
+            <div className="p-4">
+              <FlowsTab agentId={agent.id} agentName={agent.displayName} />
+            </div>
+          ) : activeTab === 'history' ? (
+            <div className="p-4">
+              <RunHistoryTab agentId={agent.id} agentName={agent.displayName} />
+            </div>
+          ) : activeTab === 'memory' ? (
             <div className="p-4">
               <MemorySettingsTab agentId={agent.id} agentName={agent.displayName} />
+            </div>
+          ) : activeTab === 'browse' ? (
+            <div className="p-4">
+              <MemoryBrowserTab agentId={agent.id} agentName={agent.displayName} />
             </div>
           ) : activeTab === 'about' ? (
             <div className="p-4 space-y-4">
