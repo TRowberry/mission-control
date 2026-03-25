@@ -114,12 +114,22 @@ async function checkScheduledAgents() {
         lastRunTimes.set(agent.id, currentMinute);
 
         try {
-          const result = await runAgent(agent.id, {
-            trigger: 'scheduled',
-            message: `Scheduled run at ${now.toISOString()}`,
+          // Create AgentRun record first
+          const run = await prisma.agentRun.create({
+            data: {
+              agentId: agent.id,
+              triggeredBy: 'scheduled',
+              status: 'pending',
+              input: `Scheduled run at ${now.toISOString()}`,
+            },
+          });
+
+          // Spawn the agent execution (async)
+          runAgent(run.id, agent, agent.agentConfig!).catch((err) => {
+            console.error(`[Scheduler] Agent run ${run.id} failed:`, err);
           });
           
-          console.log(`[Scheduler] Agent ${agent.username} completed: ${result.status}`);
+          console.log(`[Scheduler] Agent ${agent.username} run started: ${run.id}`);
         } catch (error) {
           console.error(`[Scheduler] Agent ${agent.username} failed:`, error);
         }
