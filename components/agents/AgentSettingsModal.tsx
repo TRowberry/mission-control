@@ -325,11 +325,11 @@ export default function AgentSettingsModal({
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'flows' ? (
             <div className="p-4">
-              <FlowsTab agentId={agent.id} agentName={agent.displayName} />
+              <FlowsTab agentId={agent.id} />
             </div>
           ) : activeTab === 'history' ? (
             <div className="p-4">
-              <RunHistoryTab agentId={agent.id} agentName={agent.displayName} />
+              <RunHistoryTab agentId={agent.id} />
             </div>
           ) : activeTab === 'memory' ? (
             <div className="p-4">
