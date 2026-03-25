@@ -27,9 +27,16 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  GitBranch,
+  History,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ROLE_TEMPLATES, getTemplateById, getDefaultTemplate } from './RoleTemplates';
+import FlowsTab from './FlowsTab';
+import RunHistoryTab from './RunHistoryTab';
+import MemorySettingsTab from './MemorySettingsTab';
+import MemoryBrowserTab from './MemoryBrowserTab';
 
 interface AgentConfig {
   id: string;
@@ -82,7 +89,7 @@ interface AgentModalProps {
   onSave: () => void;
 }
 
-type TabId = 'basic' | 'llm' | 'behavior' | 'capabilities' | 'limits' | 'resources' | 'projects';
+type TabId = 'basic' | 'llm' | 'behavior' | 'capabilities' | 'limits' | 'resources' | 'projects' | 'flows' | 'history' | 'memory' | 'browse';
 
 interface FormData {
   username: string;
@@ -373,6 +380,55 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
               </button>
             );
           })}
+          {/* Additional tabs only shown when editing */}
+          {isEditing && (
+            <>
+              <button
+                onClick={() => setActiveTab('flows')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  activeTab === 'flows'
+                    ? 'text-white border-b-2 border-indigo-500'
+                    : 'text-gray-400 hover:text-gray-200'
+                )}
+              >
+                <GitBranch className="w-4 h-4" />Flows
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  activeTab === 'history'
+                    ? 'text-white border-b-2 border-indigo-500'
+                    : 'text-gray-400 hover:text-gray-200'
+                )}
+              >
+                <History className="w-4 h-4" />History
+              </button>
+              <button
+                onClick={() => setActiveTab('memory')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  activeTab === 'memory'
+                    ? 'text-white border-b-2 border-indigo-500'
+                    : 'text-gray-400 hover:text-gray-200'
+                )}
+              >
+                <Brain className="w-4 h-4" />Memory
+              </button>
+              <button
+                onClick={() => setActiveTab('browse')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  activeTab === 'browse'
+                    ? 'text-white border-b-2 border-indigo-500'
+                    : 'text-gray-400 hover:text-gray-200'
+                )}
+              >
+                <Database className="w-4 h-4" />Browse
+              </button>
+            </>
+          )}
         </div>
 
         {/* Content */}
@@ -793,6 +849,26 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
                 </p>
               )}
             </div>
+          )}
+
+          {/* Flows Tab - only when editing */}
+          {isEditing && activeTab === 'flows' && agent && (
+            <FlowsTab agentId={agent.id} />
+          )}
+
+          {/* History Tab - only when editing */}
+          {isEditing && activeTab === 'history' && agent && (
+            <RunHistoryTab agentId={agent.id} />
+          )}
+
+          {/* Memory Settings Tab - only when editing */}
+          {isEditing && activeTab === 'memory' && agent && (
+            <MemorySettingsTab agentId={agent.id} agentName={agent.displayName} />
+          )}
+
+          {/* Memory Browser Tab - only when editing */}
+          {isEditing && activeTab === 'browse' && agent && (
+            <MemoryBrowserTab agentId={agent.id} agentName={agent.displayName} />
           )}
         </div>
 
