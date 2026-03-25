@@ -1,0 +1,19 @@
+# Worker Dockerfile - Mission Control Background Worker
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install production dependencies (includes bullmq)
+RUN npm ci --omit=dev
+
+# Copy worker code
+COPY worker/ ./worker/
+
+# Run worker
+CMD ["node", "worker/index.js"]
