@@ -73,7 +73,17 @@ export default function FlowsTab({ agentId }: FlowsTabProps) {
       const res = await fetch(`/api/agents/${agentId}/flows/${flowId}`);
       if (!res.ok) throw new Error('Failed to load flow');
       const data = await res.json();
-      setSelectedFlow(data.flow);
+      // Parse definition if it's a string (stored as JSON in DB)
+      const flow = data.flow;
+      if (flow.definition && typeof flow.definition === 'string') {
+        try {
+          flow.definition = JSON.parse(flow.definition);
+        } catch (e) {
+          console.error('[FlowsTab] Failed to parse flow definition:', e);
+          flow.definition = { nodes: [], edges: [] };
+        }
+      }
+      setSelectedFlow(flow);
     } catch (err) {
       console.error('[FlowsTab] loadFlowDetails error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load flow');
