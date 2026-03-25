@@ -62,7 +62,17 @@ export const postMessageAction: ActionHandler = async (config, input, context): 
 
 function resolveTemplate(template: string, data: any): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
-    const value = path.trim().split('.').reduce((obj: any, key: string) => obj?.[key], data);
+    let cleanPath = path.trim();
+    // Support both {{input.X}} and {{X}} syntax - "input." prefix is optional
+    if (cleanPath.startsWith('input.')) {
+      cleanPath = cleanPath.slice(6); // Remove "input." prefix
+    }
+    // Also support {{node.X.Y}} syntax by extracting just the last part
+    if (cleanPath.startsWith('node.')) {
+      const parts = cleanPath.split('.');
+      cleanPath = parts[parts.length - 1]; // Get last part (e.g., "report" from "node.script-1.report")
+    }
+    const value = cleanPath.split('.').reduce((obj: any, key: string) => obj?.[key], data);
     if (value === undefined) return match;
     return typeof value === 'object' ? JSON.stringify(value) : String(value);
   });
