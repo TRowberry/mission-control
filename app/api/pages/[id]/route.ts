@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuthParams } from '@/lib/modules/api/middleware';
+import { withAnyAuthParams, AuthActor } from '@/lib/modules/api/middleware';
 import { ok, notFound } from '@/lib/modules/api/response';
 
 // GET /api/pages/[id] - Get single page
-export const GET = withAuthParams(async (req: NextRequest, user, params) => {
+export const GET = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, params) => {
   const { id } = await params;
 
   const page = await prisma.page.findUnique({
@@ -35,7 +35,7 @@ export const GET = withAuthParams(async (req: NextRequest, user, params) => {
 });
 
 // PATCH /api/pages/[id] - Update page
-export const PATCH = withAuthParams(async (req: NextRequest, user, params) => {
+export const PATCH = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, params) => {
   const { id } = await params;
   const { title, icon, coverImage, content, projectId, parentId, archived, isPublic } = await req.json();
 
@@ -65,7 +65,7 @@ export const PATCH = withAuthParams(async (req: NextRequest, user, params) => {
 });
 
 // DELETE /api/pages/[id] - Delete page
-export const DELETE = withAuthParams(async (req: NextRequest, user, params) => {
+export const DELETE = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, params) => {
   const { id } = await params;
 
   await prisma.page.delete({ where: { id } });

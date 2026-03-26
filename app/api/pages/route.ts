@@ -1,28 +1,47 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuth } from '@/lib/modules/api/middleware';
+import { withAnyAuth, AuthActor, isAgent } from '@/lib/modules/api/middleware';
 import { ok, created, badRequest, notFound } from '@/lib/modules/api/response';
 
+// Helper to get workspace for actor (user or agent)
+async function getWorkspaceId(actor: AuthActor): Promise<string | null> {
+  if (isAgent(actor)) {
+    // For agents, get workspace from agent's workspace membership
+    const agent = await prisma.user.findUnique({
+      where: { id: actor.id },
+      include: {
+        workspaces: {
+          select: { workspaceId: true },
+          take: 1,
+        },
+      },
+    });
+    return agent?.workspaces[0]?.workspaceId || null;
+  } else {
+    // For users, get from workspace membership
+    const member = await prisma.workspaceMember.findFirst({
+      where: { userId: actor.id },
+      select: { workspaceId: true },
+    });
+    return member?.workspaceId || null;
+  }
+}
+
 // GET /api/pages - List pages
-export const GET = withAuth(async (req: NextRequest, user) => {
+export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get('projectId');
   const parentId = searchParams.get('parentId');
   const archived = searchParams.get('archived') === 'true';
 
-  // Get user's workspace
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: user.id },
-    select: { workspaceId: true },
-  });
-
-  if (!member) {
+  const workspaceId = await getWorkspaceId(actor);
+  if (!workspaceId) {
     return notFound('No workspace found');
   }
 
   const pages = await prisma.page.findMany({
     where: {
-      workspaceId: member.workspaceId,
+      workspaceId,
       archived,
       ...(projectId && { projectId }),
       ...(parentId ? { parentId } : { parentId: null }), // Root pages by default
@@ -45,20 +64,15 @@ export const GET = withAuth(async (req: NextRequest, user) => {
 });
 
 // POST /api/pages - Create page
-export const POST = withAuth(async (req: NextRequest, user) => {
+export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
   const { title, icon, content, projectId, parentId } = await req.json();
 
   if (!title) {
     return badRequest('Title is required');
   }
 
-  // Get user's workspace
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId: user.id },
-    select: { workspaceId: true },
-  });
-
-  if (!member) {
+  const workspaceId = await getWorkspaceId(actor);
+  if (!workspaceId) {
     return notFound('No workspace found');
   }
 
@@ -69,8 +83,8 @@ export const POST = withAuth(async (req: NextRequest, user) => {
       content: content || null,
       projectId: projectId || null,
       parentId: parentId || null,
-      createdById: user.id,
-      workspaceId: member.workspaceId,
+      createdById: actor.id,
+      workspaceId,
     },
     include: {
       createdBy: {
