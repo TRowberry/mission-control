@@ -108,24 +108,28 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 Edit files in your local `mission-control/` directory.
 
-### 2. Sync to Server (if remote)
+### 2. Commit and Push to GitHub
 
-**Single file:**
 ```bash
-scp mission-control/path/to/file.tsx your-server:~/apps/mission-control/path/to/
+cd mission-control
+git add -A
+git commit -m "feat: description of changes"
+git push origin main
 ```
 
-**Entire directory:**
+### 3. Pull Changes on Server (GraySkull)
+
 ```bash
-scp -r mission-control/components/chat/* your-server:~/apps/mission-control/components/chat/
+ssh grayskull
+cd ~/apps/mission-control
+git pull origin main
 ```
 
-⚠️ **IMPORTANT:** Match the directory structure exactly!
-
-### 3. Build Docker Image
+### 4. Build and Deploy
 
 ```bash
 docker compose build --no-cache app
+docker compose up -d --force-recreate app
 ```
 
 Build takes ~2-3 minutes. Watch for:
@@ -133,11 +137,13 @@ Build takes ~2-3 minutes. Watch for:
 - `Linting and checking validity of types` - TypeScript check
 - `Generating static pages` - Build nearly done
 
-### 4. Deploy
+### Quick Deploy (One-liner from local)
 
 ```bash
-docker compose up -d --force-recreate app
+ssh grayskull "cd ~/apps/mission-control && git pull && docker compose build && docker compose up -d"
 ```
+
+⚠️ **IMPORTANT:** Always use git for deployments. Do NOT use SCP to copy files directly.
 
 ### 5. Verify
 
