@@ -11,6 +11,8 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
+import { Columns, Column } from '@/lib/tiptap/extensions/columns';
+import { Callout } from '@/lib/tiptap/extensions/callout';
 import {
   Save,
   ArrowLeft,
@@ -98,6 +100,10 @@ export default function PageEditor({ page }: PageEditorProps) {
       TableRow,
       TableCell,
       TableHeader,
+      // Custom extensions for columns and callouts
+      Columns,
+      Column,
+      Callout,
     ],
     content: page.content,
     editorProps: {
