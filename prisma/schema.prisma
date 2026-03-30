@@ -633,12 +633,19 @@ model TaskSubscription {
 }
 
 // Documentation/Wiki Pages
+enum PageType {
+  PAGE
+  BOOKLET
+}
+
 model Page {
   id         String   @id @default(cuid())
   title      String
   icon       String?
   coverImage String?
   content    Json? // Block-based content
+  type       PageType @default(PAGE)
+  position   Int      @default(0) // For ordering within parent/booklet
   archived   Boolean  @default(false)
   isPublic   Boolean  @default(false)
   createdAt  DateTime @default(now())

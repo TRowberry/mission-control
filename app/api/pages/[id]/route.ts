@@ -17,12 +17,12 @@ export const GET = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, 
         select: { id: true, name: true, color: true },
       },
       parent: {
-        select: { id: true, title: true, icon: true },
+        select: { id: true, title: true, icon: true, type: true },
       },
       children: {
         where: { archived: false },
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, icon: true, updatedAt: true },
+        orderBy: [{ position: 'asc' }, { updatedAt: 'desc' }],
+        select: { id: true, title: true, icon: true, type: true, position: true, updatedAt: true },
       },
     },
   });
@@ -37,7 +37,7 @@ export const GET = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, 
 // PATCH /api/pages/[id] - Update page
 export const PATCH = withAnyAuthParams(async (req: NextRequest, actor: AuthActor, params) => {
   const { id } = await params;
-  const { title, icon, coverImage, content, projectId, parentId, archived, isPublic } = await req.json();
+  const { title, icon, coverImage, content, projectId, parentId, archived, isPublic, type, position } = await req.json();
 
   const page = await prisma.page.update({
     where: { id },
@@ -50,6 +50,8 @@ export const PATCH = withAnyAuthParams(async (req: NextRequest, actor: AuthActor
       ...(parentId !== undefined && { parentId }),
       ...(archived !== undefined && { archived }),
       ...(isPublic !== undefined && { isPublic }),
+      ...(type !== undefined && { type }),
+      ...(position !== undefined && { position }),
     },
     include: {
       createdBy: {
@@ -57,6 +59,9 @@ export const PATCH = withAnyAuthParams(async (req: NextRequest, actor: AuthActor
       },
       project: {
         select: { id: true, name: true, color: true },
+      },
+      _count: {
+        select: { children: true },
       },
     },
   });

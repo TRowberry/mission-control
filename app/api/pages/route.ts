@@ -33,20 +33,33 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
   const projectId = searchParams.get('projectId');
   const parentId = searchParams.get('parentId');
   const archived = searchParams.get('archived') === 'true';
+  const type = searchParams.get('type'); // 'PAGE', 'BOOKLET', or null for all
+  const includeChildren = searchParams.get('includeChildren') === 'true';
 
   const workspaceId = await getWorkspaceId(actor);
   if (!workspaceId) {
     return notFound('No workspace found');
   }
 
+  // When includeChildren=true, we want root pages only (children will be nested)
+  const shouldFilterToRoot = includeChildren && parentId === undefined;
+  
   const pages = await prisma.page.findMany({
     where: {
       workspaceId,
       archived,
       ...(projectId && { projectId }),
-      ...(parentId ? { parentId } : { parentId: null }), // Root pages by default
+      ...(type && { type: type as 'PAGE' | 'BOOKLET' }),
+      ...(shouldFilterToRoot 
+        ? { parentId: null }  // Root pages only when including children
+        : (parentId !== undefined 
+          ? (parentId ? { parentId } : { parentId: null }) 
+          : {})), // Otherwise use explicit parentId filter or show all
     },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: [
+      { position: 'asc' },
+      { updatedAt: 'desc' },
+    ],
     include: {
       createdBy: {
         select: { id: true, username: true, displayName: true, avatar: true },
@@ -57,15 +70,25 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       _count: {
         select: { children: true },
       },
+      ...(includeChildren && {
+        children: {
+          orderBy: [{ position: 'asc' }, { updatedAt: 'desc' }],
+          include: {
+            createdBy: {
+              select: { id: true, username: true, displayName: true, avatar: true },
+            },
+          },
+        },
+      }),
     },
   });
 
   return ok(pages);
 });
 
-// POST /api/pages - Create page
+// POST /api/pages - Create page or booklet
 export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { title, icon, content, projectId, parentId } = await req.json();
+  const { title, icon, content, projectId, parentId, type, position } = await req.json();
 
   if (!title) {
     return badRequest('Title is required');
@@ -76,11 +99,24 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
     return notFound('No workspace found');
   }
 
+  // If position not specified, put at end
+  let finalPosition = position;
+  if (finalPosition === undefined) {
+    const lastPage = await prisma.page.findFirst({
+      where: { workspaceId, parentId: parentId || null },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    finalPosition = (lastPage?.position ?? -1) + 1;
+  }
+
   const page = await prisma.page.create({
     data: {
       title,
-      icon: icon || null,
+      icon: icon || (type === 'BOOKLET' ? '📚' : null),
       content: content || null,
+      type: type || 'PAGE',
+      position: finalPosition,
       projectId: projectId || null,
       parentId: parentId || null,
       createdById: actor.id,
@@ -92,6 +128,9 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       },
       project: {
         select: { id: true, name: true, color: true },
+      },
+      _count: {
+        select: { children: true },
       },
     },
   });
