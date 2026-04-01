@@ -89,6 +89,33 @@ mission-control/
 
 ## Environment Setup
 
+### Docker Compose (IMPORTANT!)
+
+**`docker-compose.yml` is NOT tracked in git** - it contains secrets!
+
+1. Copy the template:
+   ```bash
+   cp docker-compose.template.yml docker-compose.yml
+   ```
+
+2. Edit `docker-compose.yml` and replace all `<PLACEHOLDER>` values:
+   - `<YOUR_DB_PASSWORD>` - PostgreSQL password
+   - `<YOUR_HOST_IP>` - Your server's IP (e.g., `10.0.0.206`)
+   - `<YOUR_JWT_SECRET>` - Random string for JWT signing
+   - `<YOUR_PUBLIC_URL>` - Public URL (e.g., `https://yourapp.example.com`)
+   - `<YOUR_OPENCLAW_GATEWAY_URL>` - OpenClaw gateway URL
+   - `<YOUR_OPENCLAW_TOKEN>` - OpenClaw auth token
+
+3. Similarly for Caddyfile:
+   ```bash
+   cp Caddyfile.template Caddyfile
+   # Edit with your domain
+   ```
+
+⚠️ **Never commit `docker-compose.yml` or `Caddyfile`** - they contain secrets!
+
+### Application Environment
+
 Copy `.env.example` to `.env` and configure:
 
 ```bash
