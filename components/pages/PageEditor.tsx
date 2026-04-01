@@ -13,6 +13,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Columns, Column } from '@/lib/tiptap/extensions/columns';
 import { Callout } from '@/lib/tiptap/extensions/callout';
+import Typography from '@tiptap/extension-typography';
 import {
   Save,
   ArrowLeft,
@@ -104,6 +105,8 @@ export default function PageEditor({ page }: PageEditorProps) {
       Columns,
       Column,
       Callout,
+      // Typography for smart quotes, em dashes, etc.
+      Typography,
     ],
     content: page.content,
     editorProps: {
