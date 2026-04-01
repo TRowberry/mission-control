@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { useSocket } from '@/components/providers/SocketProvider';
 import MessageItem from './MessageItem';
 
@@ -70,11 +70,15 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [lastReadTimestamp, setLastReadState] = useState<number>(0);
   const [newMessageDividerIndex, setNewMessageDividerIndex] = useState<number | null>(null);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasMarkedRead = useRef(false);
   const isInitialLoad = useRef(true);
+  const prevMessagesLength = useRef(0);
   const { socket, isConnected, joinChannel, leaveChannel } = useSocket();
 
   // Load last read timestamp on mount
@@ -229,32 +233,71 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
     };
   }, [socket, channelId]);
 
-  // Auto-scroll to bottom only on initial load or new messages (not when loading older)
+  // Track scroll position to detect when user scrolls up
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const scrolledUp = distanceFromBottom > 150;
+      setIsScrolledUp(scrolledUp);
+      
+      // If user scrolled back to bottom, clear the new message indicator
+      if (!scrolledUp && hasNewMessages) {
+        setHasNewMessages(false);
+        setNewMessageCount(0);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasNewMessages]);
+
+  // Auto-scroll to bottom on initial load
   useEffect(() => {
     if (messages.length > 0 && isInitialLoad.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       isInitialLoad.current = false;
+      prevMessagesLength.current = messages.length;
     }
   }, [messages]);
 
-  // Scroll to bottom when a new message arrives (check if we're already near bottom)
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleNewMessageScroll = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      
-      // Only auto-scroll if user is near the bottom (within 100px)
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      if (isNearBottom) {
+  // Handle new messages - scroll or show indicator
+  useLayoutEffect(() => {
+    // Skip if this is the initial load or loading older messages
+    if (isInitialLoad.current || messages.length <= prevMessagesLength.current) {
+      prevMessagesLength.current = messages.length;
+      return;
+    }
+
+    const newCount = messages.length - prevMessagesLength.current;
+    prevMessagesLength.current = messages.length;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const wasNearBottom = distanceFromBottom < 150;
+
+    if (wasNearBottom) {
+      // User was near bottom - auto-scroll to new messages
+      requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-    };
-    
-    socket.on('message:new', handleNewMessageScroll);
-    return () => { socket.off('message:new', handleNewMessageScroll); };
-  }, [socket]);
+      });
+    } else {
+      // User has scrolled up - show "new messages" indicator
+      setHasNewMessages(true);
+      setNewMessageCount(prev => prev + newCount);
+    }
+  }, [messages]);
+
+  // Function to scroll to bottom (called by "new messages" button)
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setHasNewMessages(false);
+    setNewMessageCount(0);
+  }, []);
 
   // IntersectionObserver for infinite scroll - load more when top sentinel is visible
   useEffect(() => {
@@ -327,7 +370,23 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+    <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative">
+      {/* Floating "New Messages" button - positioned at bottom of scroll container */}
+      {hasNewMessages && (
+        <div className="sticky bottom-0 w-full flex justify-center pb-4 pointer-events-none">
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded-full shadow-lg transition-all hover:scale-105"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <span className="text-sm font-medium">
+              {newMessageCount} new message{newMessageCount !== 1 ? 's' : ''}
+            </span>
+          </button>
+        </div>
+      )}
       <div className="flex flex-col justify-end min-h-full">
         {messages.length === 0 && (
           <div className="p-4 text-center">
