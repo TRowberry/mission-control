@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getAgentFromRequest } from '@/lib/agent-auth';
+import { getAgentFromApiKey } from '@/lib/agent-auth';
 
 /**
  * POST /api/qa/results - Store QA test results (called by QA runner)
@@ -15,7 +15,7 @@ import { getAgentFromRequest } from '@/lib/agent-auth';
  */
 export async function POST(request: NextRequest) {
   try {
-    const agent = await getAgentFromRequest(request);
+    const agent = await getAgentFromApiKey();
     if (!agent) {
       return NextResponse.json(
         { error: 'Unauthorized - Agent API key required' },
