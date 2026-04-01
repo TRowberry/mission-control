@@ -38,11 +38,15 @@ export async function GET(
       '.jpeg': 'image/jpeg',
       '.gif': 'image/gif',
       '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
       '.mp4': 'video/mp4',
       '.webm': 'video/webm',
       '.pdf': 'application/pdf',
       '.txt': 'text/plain',
       '.json': 'application/json',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
     };
     
     const contentType = contentTypes[ext] || 'application/octet-stream';
