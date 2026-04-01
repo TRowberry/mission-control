@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ThreadPanel from './ThreadPanel';
@@ -39,6 +40,8 @@ interface ChatViewProps {
 }
 
 export default function ChatView({ channelId, currentUser }: ChatViewProps) {
+  const searchParams = useSearchParams();
+  const highlightMessageId = searchParams.get('highlight');
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null);
   const [threadInfo, setThreadInfo] = useState<ThreadInfo | null>(null);
 
@@ -93,6 +96,7 @@ export default function ChatView({ channelId, currentUser }: ChatViewProps) {
         <MessageList 
           channelId={channelId} 
           currentUserId={currentUser.id}
+          highlightMessageId={highlightMessageId}
           onReply={(message) => {
             setReplyTo({
               id: message.id,

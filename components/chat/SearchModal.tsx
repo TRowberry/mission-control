@@ -94,7 +94,7 @@ export default function SearchModal({ isOpen, onClose, initialQuery = '' }: Sear
     setHasSearched(true);
 
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=${activeTab}&limit=20`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=${activeTab}&limit=50`);
       if (res.ok) {
         const data = await res.json();
         setResults(data.results);

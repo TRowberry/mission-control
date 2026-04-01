@@ -58,11 +58,12 @@ interface Message {
 interface MessageListProps {
   channelId: string;
   currentUserId: string;
+  highlightMessageId?: string | null;
   onReply?: (message: Message) => void;
   onThreadOpen?: (message: Message) => void;
 }
 
-export default function MessageList({ channelId, currentUserId, onReply, onThreadOpen }: MessageListProps) {
+export default function MessageList({ channelId, currentUserId, highlightMessageId, onReply, onThreadOpen }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -73,12 +74,15 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const hasMarkedRead = useRef(false);
   const isInitialLoad = useRef(true);
   const prevMessagesLength = useRef(0);
+  const hasScrolledToHighlight = useRef(false);
   const { socket, isConnected, joinChannel, leaveChannel } = useSocket();
 
   // Load last read timestamp on mount
@@ -299,6 +303,30 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
     setNewMessageCount(0);
   }, []);
 
+  // Scroll to highlighted message from search
+  useEffect(() => {
+    if (!highlightMessageId || hasScrolledToHighlight.current || messages.length === 0) return;
+
+    // Check if the highlighted message exists in our loaded messages
+    const messageExists = messages.some(m => m.id === highlightMessageId);
+    if (!messageExists) return;
+
+    // Wait a tick for refs to be set
+    requestAnimationFrame(() => {
+      const element = messageRefs.current.get(highlightMessageId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedId(highlightMessageId);
+        hasScrolledToHighlight.current = true;
+
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          setHighlightedId(null);
+        }, 3000);
+      }
+    });
+  }, [highlightMessageId, messages]);
+
   // IntersectionObserver for infinite scroll - load more when top sentinel is visible
   useEffect(() => {
     const sentinel = topSentinelRef.current;
@@ -464,7 +492,14 @@ export default function MessageList({ channelId, currentUserId, onReply, onThrea
                     messageIndex !== 0; // Don't show twice if it's first in group
 
                   return (
-                    <div key={message.id}>
+                    <div 
+                      key={message.id}
+                      ref={(el) => {
+                        if (el) messageRefs.current.set(message.id, el);
+                        else messageRefs.current.delete(message.id);
+                      }}
+                      className={highlightedId === message.id ? 'bg-yellow-500/20 transition-colors duration-1000' : ''}
+                    >
                       {showNewIndicatorBeforeMessage && (
                         <div className="flex items-center gap-2 px-4 py-2 my-2">
                           <div className="flex-1 h-px bg-red-500" />
