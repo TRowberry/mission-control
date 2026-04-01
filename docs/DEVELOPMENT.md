@@ -114,6 +114,24 @@ mission-control/
 
 ⚠️ **Never commit `docker-compose.yml` or `Caddyfile`** - they contain secrets!
 
+### Production Port Configuration (IMPORTANT!)
+
+For SSL/HTTPS to work properly, Caddy needs ports 80 and 443:
+
+```yaml
+caddy:
+  ports:
+    - "80:80"    # Required for HTTP→HTTPS redirect & ACME challenges
+    - "443:443"  # HTTPS - standard port, no :8443!
+```
+
+**Common mistake:** Using `8443:443` means users must access `https://domain:8443` instead of `https://domain`. Always use `443:443` for production.
+
+**Also set the correct public URL in app environment:**
+```yaml
+NEXT_PUBLIC_APP_URL: https://your-domain.com  # NOT https://ip:8443
+```
+
 ### Application Environment
 
 Copy `.env.example` to `.env` and configure:
