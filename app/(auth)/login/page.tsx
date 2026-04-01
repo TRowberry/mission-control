@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Rocket, Loader2 } from 'lucide-react';
@@ -9,6 +9,14 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(data => setRegistrationEnabled(data.registrationEnabled))
+      .catch(() => setRegistrationEnabled(false));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -99,12 +107,14 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-gray-400 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="text-primary hover:underline">
-            Create one
-          </Link>
-        </p>
+        {registrationEnabled && (
+          <p className="text-center text-gray-400 mt-6">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-primary hover:underline">
+              Create one
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

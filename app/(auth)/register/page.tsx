@@ -1,14 +1,56 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Rocket, Loader2 } from 'lucide-react';
+import { Rocket, Loader2, ShieldX } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(data => {
+        setRegistrationEnabled(data.registrationEnabled);
+        // Redirect to login if registration is disabled
+        if (!data.registrationEnabled) {
+          setTimeout(() => router.push('/login'), 3000);
+        }
+      })
+      .catch(() => setRegistrationEnabled(false));
+  }, [router]);
+
+  // Show loading state while checking
+  if (registrationEnabled === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#202225]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show disabled message
+  if (!registrationEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#202225] p-4">
+        <div className="w-full max-w-md text-center">
+          <ShieldX className="w-16 h-16 text-warning mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Registration Disabled</h1>
+          <p className="text-gray-400 mb-6">
+            Public registration is currently disabled. Please contact an administrator for access.
+          </p>
+          <p className="text-gray-500 text-sm mb-4">Redirecting to login...</p>
+          <Link href="/login" className="btn btn-primary">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

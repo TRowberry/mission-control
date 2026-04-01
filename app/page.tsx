@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Rocket, MessageSquare, LayoutGrid, Users, Zap } from 'lucide-react';
 
 export default function Home() {
+  const registrationEnabled = process.env.REGISTRATION_DISABLED !== 'true';
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1b1e] via-[#2f3136] to-[#1a1b1e]">
       {/* Header */}
@@ -14,9 +16,11 @@ export default function Home() {
           <Link href="/login" className="btn btn-ghost">
             Log in
           </Link>
-          <Link href="/register" className="btn btn-primary">
-            Get Started
-          </Link>
+          {registrationEnabled && (
+            <Link href="/register" className="btn btn-primary">
+              Get Started
+            </Link>
+          )}
         </div>
       </header>
 
@@ -31,9 +35,15 @@ export default function Home() {
             Built for teams who ship fast.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link href="/register" className="btn btn-primary px-8 py-3 text-lg">
-              Start for Free
-            </Link>
+            {registrationEnabled ? (
+              <Link href="/register" className="btn btn-primary px-8 py-3 text-lg">
+                Start for Free
+              </Link>
+            ) : (
+              <Link href="/login" className="btn btn-primary px-8 py-3 text-lg">
+                Sign In
+              </Link>
+            )}
             <Link href="/demo" className="btn btn-secondary px-8 py-3 text-lg">
               Live Demo
             </Link>
