@@ -25,6 +25,8 @@ prisma/dev.db
 login.json
 *.pem
 *.key
+docker-compose.yml
+Caddyfile
 
 # IDE
 .idea/

@@ -1,0 +1,7 @@
+# Caddyfile.template
+# Copy this to Caddyfile and update with your domain
+# DO NOT commit Caddyfile to git!
+
+your-domain.example.com {
+    reverse_proxy app:3000
+}

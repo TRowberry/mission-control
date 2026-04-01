@@ -1,3 +1,7 @@
+# docker-compose.template.yml
+# Copy this to docker-compose.yml and fill in your secrets
+# DO NOT commit docker-compose.yml to git!
+
 version: '3.8'
 
 services:
@@ -8,7 +12,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: mission
-      POSTGRES_PASSWORD: mission123
+      POSTGRES_PASSWORD: <YOUR_DB_PASSWORD>
       POSTGRES_DB: mission_control
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -46,12 +50,13 @@ services:
       - db
       - redis
     environment:
-      DATABASE_URL: postgresql://mission:mission123@10.0.0.206:5432/mission_control
-      REDIS_URL: redis://10.0.0.206:6379
-      JWT_SECRET: mission-control-super-secret-key-change-me
-      NEXT_PUBLIC_APP_URL: https://10.0.0.206:8443
-      OPENCLAW_GATEWAY_URL: http://10.0.0.108:18789
-      OPENCLAW_GATEWAY_TOKEN: "111111"
+      DATABASE_URL: postgresql://mission:<YOUR_DB_PASSWORD>@<YOUR_HOST_IP>:5432/mission_control
+      REDIS_URL: redis://<YOUR_HOST_IP>:6379
+      JWT_SECRET: <YOUR_JWT_SECRET>
+      NEXT_PUBLIC_APP_URL: <YOUR_PUBLIC_URL>
+      OPENCLAW_GATEWAY_URL: <YOUR_OPENCLAW_GATEWAY_URL>
+      OPENCLAW_GATEWAY_TOKEN: <YOUR_OPENCLAW_TOKEN>
+      REGISTRATION_DISABLED: "true"
       PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
     volumes:
       - uploads_data:/app/public/uploads
@@ -71,10 +76,10 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     environment:
-      REDIS_HOST: "10.0.0.206"
+      REDIS_HOST: <YOUR_HOST_IP>
       REDIS_PORT: "6379"
-      OPENCLAW_GATEWAY_URL: http://10.0.0.108:18789
-      OPENCLAW_GATEWAY_TOKEN: "111111"
+      OPENCLAW_GATEWAY_URL: <YOUR_OPENCLAW_GATEWAY_URL>
+      OPENCLAW_GATEWAY_TOKEN: <YOUR_OPENCLAW_TOKEN>
     depends_on:
       redis:
         condition: service_healthy
@@ -83,7 +88,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "8443:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
