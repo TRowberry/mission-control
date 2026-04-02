@@ -2,9 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { hashPassword, generateToken, setAuthCookie } from '@/lib/auth';
 import { generateSlug } from '@/lib/utils';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 3 registration attempts per hour per IP
+    const clientIp = getClientIp(request);
+    const rateCheck = checkRateLimit(`register:${clientIp}`, RATE_LIMITS.register);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)),
+          },
+        }
+      );
+    }
+
     const { email, username, displayName, password } = await request.json();
 
     // Validate input

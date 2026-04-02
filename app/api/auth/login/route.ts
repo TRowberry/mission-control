@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { verifyPassword, generateToken } from '@/lib/auth';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 login attempts per 15 minutes per IP
+    const clientIp = getClientIp(request);
+    const rateCheck = checkRateLimit(`login:${clientIp}`, RATE_LIMITS.auth);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)),
+          },
+        }
+      );
+    }
+
     const { email, password } = await request.json();
 
     if (!email || !password) {
@@ -57,11 +73,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Set cookie on the response (not via cookies() which doesn't work in Route Handlers)
-    // NOTE: secure=false because MC runs on HTTP (LAN only). Set to true if HTTPS is added.
+    // Set cookie on the response
+    const isProduction = process.env.NODE_ENV === 'production';
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: false,
+      secure: isProduction, // true in production (behind HTTPS via Caddy)
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/',
