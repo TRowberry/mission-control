@@ -67,8 +67,9 @@ export const POST = withAgent(async (request: NextRequest, agent: AuthAgent) => 
         if (!response.ok) {
           const error = await response.text();
           console.error(`[Embed] Ollama error for text "${t.substring(0, 50)}...":`, error);
+          console.error(`[Embed] Ollama error for text "${t.substring(0, 50)}...":`, error);
           return NextResponse.json(
-            { error: `Embedding generation failed: ${response.status}`, details: error },
+            { error: 'Embedding generation failed' },
             { status: 502 }
           );
         }
@@ -86,11 +87,7 @@ export const POST = withAgent(async (request: NextRequest, agent: AuthAgent) => 
       } catch (fetchError: any) {
         console.error('[Embed] Failed to connect to Ollama:', fetchError.message);
         return NextResponse.json(
-          { 
-            error: 'Embedding service unavailable',
-            details: fetchError.message,
-            hint: 'Ensure Ollama is running with nomic-embed-text model'
-          },
+          { error: 'Embedding service unavailable' },
           { status: 503 }
         );
       }

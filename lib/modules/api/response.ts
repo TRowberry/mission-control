@@ -86,11 +86,18 @@ export function validationError(errors: Record<string, string>) {
 
 /**
  * 500 Internal Server Error - Something went wrong
- * Logs the error to console automatically
+ * Logs the full error to console but returns only a safe message to the client.
+ * In development, includes error type for debugging.
  */
 export function serverError(message: string, error?: unknown) {
   if (error) {
     console.error(`[API Error] ${message}:`, error);
   }
-  return NextResponse.json({ error: message }, { status: 500 });
+  const isProduction = process.env.NODE_ENV === 'production';
+  return NextResponse.json(
+    { 
+      error: isProduction ? 'Internal server error' : message,
+    },
+    { status: 500 }
+  );
 }
