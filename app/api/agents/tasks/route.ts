@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { getAgentFromApiKey } from '@/lib/agent-auth';
+import { withAgent, AuthAgent } from '@/lib/modules/api/middleware';
+import { ok, badRequest, notFound, forbidden, serverError, created } from '@/lib/modules/api/response';
 import { canAccessProject } from '@/lib/modules/api/permissions';
 
 // Valid priority values
@@ -19,16 +20,8 @@ const VALID_PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
  * Headers:
  *   - X-API-Key: Agent's API key
  */
-export async function GET(request: NextRequest) {
+export const GET = withAgent(async (request: NextRequest, agent: AuthAgent) => {
   try {
-    const agent = await getAgentFromApiKey();
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Invalid or missing API key' },
-        { status: 401 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
     const status = searchParams.get('status');
@@ -177,7 +170,7 @@ export async function GET(request: NextRequest) {
       createdBy: task.createdBy,
     }));
 
-    return NextResponse.json({
+    return ok({
       tasks: formattedTasks,
       total: formattedTasks.length,
       agentId: agent.id,
@@ -185,12 +178,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Agent Tasks] Error fetching tasks:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch tasks' },
-      { status: 500 }
-    );
+    return serverError('Failed to fetch tasks', error);
   }
-}
+});
 
 /**
  * POST /api/agents/tasks
@@ -209,16 +199,8 @@ export async function GET(request: NextRequest) {
  * Headers:
  *   - X-API-Key: Agent's API key
  */
-export async function POST(request: NextRequest) {
+export const POST = withAgent(async (request: NextRequest, agent: AuthAgent) => {
   try {
-    const agent = await getAgentFromApiKey();
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Invalid or missing API key' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const { 
       title, 
@@ -232,18 +214,12 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!title || !columnId) {
-      return NextResponse.json(
-        { error: 'title and columnId are required' },
-        { status: 400 }
-      );
+      return badRequest('title and columnId are required');
     }
 
     // Validate priority if provided
     if (priority && !VALID_PRIORITIES.includes(priority)) {
-      return NextResponse.json(
-        { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` },
-        { status: 400 }
-      );
+      return badRequest(`Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}`);
     }
 
     // Get the column and verify agent has access to the project
@@ -253,19 +229,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (!column) {
-      return NextResponse.json(
-        { error: 'Column not found' },
-        { status: 404 }
-      );
+      return notFound('Column not found');
     }
 
     // Check agent has access to this project
     const hasAccess = await canAccessProject({ id: agent.id, isAgent: true } as any, column.projectId);
     if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'No access to this project' },
-        { status: 403 }
-      );
+      return forbidden('No access to this project');
     }
 
     // Get max position in column for ordering
@@ -347,7 +317,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Agent Tasks] Agent ${agent.username} created task "${title}" in ${column.name}`);
 
-    return NextResponse.json({
+    return created({
       success: true,
       task: {
         id: task.id,
@@ -364,15 +334,12 @@ export async function POST(request: NextRequest) {
         assignee: task.assignee,
         createdAt: task.createdAt.toISOString(),
       },
-    }, { status: 201 });
+    });
   } catch (error) {
     console.error('[Agent Tasks] Error creating task:', error);
-    return NextResponse.json(
-      { error: 'Failed to create task' },
-      { status: 500 }
-    );
+    return serverError('Failed to create task', error);
   }
-}
+});
 
 /**
  * PATCH /api/agents/tasks
@@ -398,16 +365,8 @@ export async function POST(request: NextRequest) {
  * Headers:
  *   - X-API-Key: Agent's API key
  */
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAgent(async (request: NextRequest, agent: AuthAgent) => {
   try {
-    const agent = await getAgentFromApiKey();
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Invalid or missing API key' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const { 
       taskId, 
@@ -424,52 +383,31 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!taskId) {
-      return NextResponse.json(
-        { error: 'taskId is required' },
-        { status: 400 }
-      );
+      return badRequest('taskId is required');
     }
 
     // Validate priority if provided
     if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
-      return NextResponse.json(
-        { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` },
-        { status: 400 }
-      );
+      return badRequest(`Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}`);
     }
 
     // Validate subtasks array if provided
-    // Subtasks can be:
-    // - Updates: { id: string, completed: boolean } - update existing subtask
-    // - New: { title: string, completed?: boolean } - create new subtask (requires canCreateSubtasks)
     if (subtasks !== undefined) {
       if (!Array.isArray(subtasks)) {
-        return NextResponse.json(
-          { error: 'subtasks must be an array' },
-          { status: 400 }
-        );
+        return badRequest('subtasks must be an array');
       }
       for (const subtask of subtasks) {
         // Must have either id (update) or title (create)
         if (!subtask.id && !subtask.title) {
-          return NextResponse.json(
-            { error: 'Each subtask must have either an id (for updates) or a title (for creation)' },
-            { status: 400 }
-          );
+          return badRequest('Each subtask must have either an id (for updates) or a title (for creation)');
         }
         // If updating, must have completed boolean
         if (subtask.id && typeof subtask.completed !== 'boolean') {
-          return NextResponse.json(
-            { error: 'Subtask updates must have a boolean completed field' },
-            { status: 400 }
-          );
+          return badRequest('Subtask updates must have a boolean completed field');
         }
         // If creating, must have title
         if (!subtask.id && typeof subtask.title !== 'string') {
-          return NextResponse.json(
-            { error: 'New subtasks must have a title string' },
-            { status: 400 }
-          );
+          return badRequest('New subtasks must have a title string');
         }
       }
     }
@@ -494,17 +432,11 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!existingTask) {
-      return NextResponse.json(
-        { error: 'Task not found' },
-        { status: 404 }
-      );
+      return notFound('Task not found');
     }
 
     if (existingTask.assigneeId !== agent.id) {
-      return NextResponse.json(
-        { error: 'You can only update tasks assigned to you' },
-        { status: 403 }
-      );
+      return forbidden('You can only update tasks assigned to you');
     }
 
     // Get agent config for capability checks
@@ -555,17 +487,11 @@ export async function PATCH(request: NextRequest) {
       });
 
       if (!newColumn) {
-        return NextResponse.json(
-          { error: 'Column not found' },
-          { status: 404 }
-        );
+        return notFound('Column not found');
       }
 
       if (newColumn.projectId !== existingTask.column.projectId) {
-        return NextResponse.json(
-          { error: 'Cannot move task to a column in a different project' },
-          { status: 400 }
-        );
+        return badRequest('Cannot move task to a column in a different project');
       }
 
       updateData.columnId = columnId;
@@ -648,20 +574,14 @@ export async function PATCH(request: NextRequest) {
       
       // Check capability for creating new subtasks
       if (subtaskCreates.length > 0 && !agentConfig?.canCreateSubtasks) {
-        return NextResponse.json(
-          { error: 'Agent does not have permission to create subtasks' },
-          { status: 403 }
-        );
+        return forbidden('Agent does not have permission to create subtasks');
       }
       
       // Process updates
       for (const subtaskUpdate of subtaskUpdates) {
         // Validate the subtask belongs to this task
         if (!existingSubtaskIds.has(subtaskUpdate.id)) {
-          return NextResponse.json(
-            { error: `Subtask ${subtaskUpdate.id} does not belong to this task` },
-            { status: 400 }
-          );
+          return badRequest(`Subtask ${subtaskUpdate.id} does not belong to this task`);
         }
         
         // Update the subtask
@@ -762,7 +682,7 @@ export async function PATCH(request: NextRequest) {
     if (subtasksCreated > 0) subtaskSummary.push(`${subtasksCreated} created`);
     console.log(`[Agent Tasks] Agent ${agent.username} updated task ${taskId}${subtaskSummary.length > 0 ? ` (subtasks: ${subtaskSummary.join(', ')})` : ''}`);
 
-    return NextResponse.json({
+    return ok({
       success: true,
       task: {
         id: updatedTask.id,
@@ -785,9 +705,6 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Agent Tasks] Error updating task:', error);
-    return NextResponse.json(
-      { error: 'Failed to update task' },
-      { status: 500 }
-    );
+    return serverError('Failed to update task', error);
   }
-}
+});

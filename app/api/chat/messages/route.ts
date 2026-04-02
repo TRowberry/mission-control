@@ -17,28 +17,30 @@ async function wakeAgent(
   messageId: string,
   webhookUrl: string | null
 ) {
-  // Special handling for Rico - use OpenClaw gateway
+  // Special handling for Rico - use OpenClaw gateway chat completions API
   if (agentUsername.toLowerCase() === 'rico' && OPENCLAW_GATEWAY_TOKEN) {
     try {
       const wakeMessage = `@${agentUsername} mentioned in Mission Control (channel: ${channelId}, message: ${messageId})`;
       
       console.log(`[Agent Wake] Waking Rico via OpenClaw gateway`);
       
-      const response = await fetch(`${OPENCLAW_GATEWAY_URL}/tools/invoke`, {
+      const response = await fetch(`${OPENCLAW_GATEWAY_URL}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
         },
         body: JSON.stringify({
-          tool: 'cron',
-          args: {
-            action: 'wake',
-            text: wakeMessage,
-            mode: 'now',
-          },
+          model: 'openclaw',
+          messages: [
+            {
+              role: 'user',
+              content: `System: ${wakeMessage}`,
+            },
+          ],
+          stream: false,
         }),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(120000), // Agent may take time to respond
       });
 
       if (response.ok) {

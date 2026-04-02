@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getAgentFromApiKey } from '@/lib/agent-auth';
+import { withAgent, withAnyAuth, AuthAgent, AuthActor } from '@/lib/modules/api/middleware';
+import { ok, badRequest, serverError } from '@/lib/modules/api/response';
 
 /**
  * POST /api/qa/results - Store QA test results (called by QA runner)
@@ -13,24 +14,13 @@ import { getAgentFromApiKey } from '@/lib/agent-auth';
  *   - deployCommit: Git commit hash (optional)
  *   - deployBranch: Git branch (optional)
  */
-export async function POST(request: NextRequest) {
+export const POST = withAgent(async (request: NextRequest, agent: AuthAgent) => {
   try {
-    const agent = await getAgentFromApiKey();
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Agent API key required' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const { results, deployCommit, deployBranch } = body;
 
     if (!results) {
-      return NextResponse.json(
-        { error: 'results field is required' },
-        { status: 400 }
-      );
+      return badRequest('results field is required');
     }
 
     // Store in database
@@ -48,7 +38,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    return ok({
       success: true,
       runId: testRun.id,
       passed: testRun.passed,
@@ -56,12 +46,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[QA Results] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to store QA results' },
-      { status: 500 }
-    );
+    return serverError('Failed to store QA results', error);
   }
-}
+});
 
 /**
  * GET /api/qa/results - Get QA test history
@@ -70,7 +57,7 @@ export async function POST(request: NextRequest) {
  *   - limit: Number of results (default 20, max 100)
  *   - passed: Filter by passed status (true/false)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAnyAuth(async (request: NextRequest, actor: AuthActor) => {
   try {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
@@ -110,16 +97,13 @@ export async function GET(request: NextRequest) {
       ? Math.round((stats.passedRuns / stats.totalRuns) * 100) 
       : 0;
 
-    return NextResponse.json({
+    return ok({
       runs: formattedRuns,
       stats,
     });
 
   } catch (error) {
     console.error('[QA Results] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch QA results' },
-      { status: 500 }
-    );
+    return serverError('Failed to fetch QA results', error);
   }
-}
+});

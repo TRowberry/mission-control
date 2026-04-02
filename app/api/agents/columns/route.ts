@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { getAgentFromApiKey } from '@/lib/agent-auth';
+import { withAgent, AuthAgent } from '@/lib/modules/api/middleware';
+import { ok, badRequest, notFound, serverError } from '@/lib/modules/api/response';
 
 /**
  * GET /api/agents/columns
@@ -13,24 +14,13 @@ import { getAgentFromApiKey } from '@/lib/agent-auth';
  * Headers:
  *   - X-API-Key: Agent's API key
  */
-export async function GET(request: NextRequest) {
+export const GET = withAgent(async (request: NextRequest, agent: AuthAgent) => {
   try {
-    const agent = await getAgentFromApiKey();
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Invalid or missing API key' },
-        { status: 401 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
     if (!projectId) {
-      return NextResponse.json(
-        { error: 'projectId query parameter is required' },
-        { status: 400 }
-      );
+      return badRequest('projectId query parameter is required');
     }
 
     // Verify project exists
@@ -43,10 +33,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+      return notFound('Project not found');
     }
 
     // Get columns for the project
@@ -60,16 +47,13 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    return ok({
       columns,
       projectId: project.id,
       projectName: project.name,
     });
   } catch (error) {
     console.error('[Agent Columns] Error fetching columns:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch columns' },
-      { status: 500 }
-    );
+    return serverError('Failed to fetch columns', error);
   }
-}
+});
