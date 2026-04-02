@@ -391,7 +391,9 @@ export async function POST(request: NextRequest) {
  *   - columnId: move to different column
  *   - completed: mark as completed (true) or uncompleted (false)
  *   - stateId: change workflow state (string or null)
- *   - subtasks: array of subtask updates [{id, completed}]
+ *   - subtasks: array of subtask operations:
+ *       - Updates: {id: string, completed: boolean} - update existing subtask
+ *       - Creates: {title: string, completed?: boolean} - create new subtask (requires canCreateSubtasks)
  * 
  * Headers:
  *   - X-API-Key: Agent's API key
@@ -437,6 +439,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate subtasks array if provided
+    // Subtasks can be:
+    // - Updates: { id: string, completed: boolean } - update existing subtask
+    // - New: { title: string, completed?: boolean } - create new subtask (requires canCreateSubtasks)
     if (subtasks !== undefined) {
       if (!Array.isArray(subtasks)) {
         return NextResponse.json(
@@ -445,15 +450,24 @@ export async function PATCH(request: NextRequest) {
         );
       }
       for (const subtask of subtasks) {
-        if (!subtask.id) {
+        // Must have either id (update) or title (create)
+        if (!subtask.id && !subtask.title) {
           return NextResponse.json(
-            { error: 'Each subtask must have an id' },
+            { error: 'Each subtask must have either an id (for updates) or a title (for creation)' },
             { status: 400 }
           );
         }
-        if (typeof subtask.completed !== 'boolean') {
+        // If updating, must have completed boolean
+        if (subtask.id && typeof subtask.completed !== 'boolean') {
           return NextResponse.json(
-            { error: 'Each subtask must have a boolean completed field' },
+            { error: 'Subtask updates must have a boolean completed field' },
+            { status: 400 }
+          );
+        }
+        // If creating, must have title
+        if (!subtask.id && typeof subtask.title !== 'string') {
+          return NextResponse.json(
+            { error: 'New subtasks must have a title string' },
             { status: 400 }
           );
         }
@@ -492,6 +506,12 @@ export async function PATCH(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // Get agent config for capability checks
+    const agentConfig = await prisma.agentConfig.findUnique({
+      where: { userId: agent.id },
+      select: { canCreateSubtasks: true },
+    });
 
     // Build update data
     const updateData: any = {};
@@ -616,12 +636,26 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    // Handle subtask updates
+    // Handle subtask updates and creations
     let subtasksUpdated = 0;
+    let subtasksCreated = 0;
     if (subtasks && subtasks.length > 0) {
       const existingSubtaskIds = new Set(existingTask.subtasks.map(s => s.id));
       
-      for (const subtaskUpdate of subtasks) {
+      // Separate updates from creates
+      const subtaskUpdates = subtasks.filter((s: any) => s.id);
+      const subtaskCreates = subtasks.filter((s: any) => !s.id && s.title);
+      
+      // Check capability for creating new subtasks
+      if (subtaskCreates.length > 0 && !agentConfig?.canCreateSubtasks) {
+        return NextResponse.json(
+          { error: 'Agent does not have permission to create subtasks' },
+          { status: 403 }
+        );
+      }
+      
+      // Process updates
+      for (const subtaskUpdate of subtaskUpdates) {
         // Validate the subtask belongs to this task
         if (!existingSubtaskIds.has(subtaskUpdate.id)) {
           return NextResponse.json(
@@ -637,10 +671,31 @@ export async function PATCH(request: NextRequest) {
         });
         subtasksUpdated++;
       }
+      
+      // Process creates - get max position first
+      if (subtaskCreates.length > 0) {
+        const maxPositionResult = await prisma.subtask.aggregate({
+          where: { taskId },
+          _max: { position: true },
+        });
+        let nextPosition = (maxPositionResult._max.position ?? -1) + 1;
+        
+        for (const newSubtask of subtaskCreates) {
+          await prisma.subtask.create({
+            data: {
+              title: newSubtask.title,
+              completed: newSubtask.completed || false,
+              position: nextPosition++,
+              taskId: taskId,
+            },
+          });
+          subtasksCreated++;
+        }
+      }
     }
 
-    // Refetch subtasks after updates
-    const finalSubtasks = subtasksUpdated > 0 
+    // Refetch subtasks after updates or creations
+    const finalSubtasks = (subtasksUpdated > 0 || subtasksCreated > 0)
       ? await prisma.subtask.findMany({
           where: { taskId },
           orderBy: { position: 'asc' },
@@ -685,6 +740,10 @@ export async function PATCH(request: NextRequest) {
         activityData.subtasksUpdated = subtasksUpdated;
       }
 
+      if (subtasksCreated > 0) {
+        activityData.subtasksCreated = subtasksCreated;
+      }
+
       await prisma.activity.create({
         data: {
           type: columnId && columnId !== existingTask.columnId ? 'task_moved' : 'task_updated',
@@ -698,7 +757,10 @@ export async function PATCH(request: NextRequest) {
       console.error('[Agent Tasks] Failed to log activity:', err);
     }
 
-    console.log(`[Agent Tasks] Agent ${agent.username} updated task ${taskId}${subtasksUpdated > 0 ? ` (${subtasksUpdated} subtasks)` : ''}`);
+    const subtaskSummary = [];
+    if (subtasksUpdated > 0) subtaskSummary.push(`${subtasksUpdated} updated`);
+    if (subtasksCreated > 0) subtaskSummary.push(`${subtasksCreated} created`);
+    console.log(`[Agent Tasks] Agent ${agent.username} updated task ${taskId}${subtaskSummary.length > 0 ? ` (subtasks: ${subtaskSummary.join(', ')})` : ''}`);
 
     return NextResponse.json({
       success: true,
@@ -719,6 +781,7 @@ export async function PATCH(request: NextRequest) {
         state: updatedTask.state,
       },
       subtasksUpdated,
+      subtasksCreated,
     });
   } catch (error) {
     console.error('[Agent Tasks] Error updating task:', error);

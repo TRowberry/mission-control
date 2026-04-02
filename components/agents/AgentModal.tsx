@@ -52,6 +52,7 @@ interface AgentConfig {
   canSendMessages: boolean;
   canEditTasks: boolean;
   canCreateTasks: boolean;
+  canCreateSubtasks: boolean;
   canNotifyUsers: boolean;
   requireApprovalFor: string | null;
   actionsPerMinute: number;
@@ -108,6 +109,7 @@ interface FormData {
   canSendMessages: boolean;
   canEditTasks: boolean;
   canCreateTasks: boolean;
+  canCreateSubtasks: boolean;
   canNotifyUsers: boolean;
   requireApprovalFor: string[];
   actionsPerMinute: number;
@@ -170,6 +172,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
     canSendMessages: agent?.agentConfig?.canSendMessages ?? defaultTemplate.canSendMessages,
     canEditTasks: agent?.agentConfig?.canEditTasks ?? defaultTemplate.canEditTasks,
     canCreateTasks: agent?.agentConfig?.canCreateTasks ?? defaultTemplate.canCreateTasks,
+    canCreateSubtasks: agent?.agentConfig?.canCreateSubtasks ?? defaultTemplate.canCreateSubtasks ?? false,
     canNotifyUsers: agent?.agentConfig?.canNotifyUsers ?? defaultTemplate.canNotifyUsers,
     requireApprovalFor: agent?.agentConfig?.requireApprovalFor 
       ? JSON.parse(agent.agentConfig.requireApprovalFor) 
@@ -236,6 +239,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
       canSendMessages: template.canSendMessages,
       canEditTasks: template.canEditTasks,
       canCreateTasks: template.canCreateTasks,
+      canCreateSubtasks: template.canCreateSubtasks ?? false,
       canNotifyUsers: template.canNotifyUsers,
       actionsPerMinute: template.actionsPerMinute,
       actionsPerHour: template.actionsPerHour,
@@ -273,6 +277,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
         canSendMessages: formData.canSendMessages,
         canEditTasks: formData.canEditTasks,
         canCreateTasks: formData.canCreateTasks,
+        canCreateSubtasks: formData.canCreateSubtasks,
         canNotifyUsers: formData.canNotifyUsers,
         requireApprovalFor: JSON.stringify(formData.requireApprovalFor),
         actionsPerMinute: formData.actionsPerMinute,
@@ -680,6 +685,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
                 { key: 'canSendMessages', label: 'Send Messages', desc: 'Post messages in channels and send DMs' },
                 { key: 'canEditTasks', label: 'Edit Tasks', desc: 'Update task status, assignees, and details' },
                 { key: 'canCreateTasks', label: 'Create Tasks', desc: 'Create new tasks in projects' },
+                { key: 'canCreateSubtasks', label: 'Create Subtasks', desc: 'Add new subtasks to existing tasks' },
                 { key: 'canNotifyUsers', label: 'Notify Users', desc: 'Mention and notify users directly' },
               ].map(cap => (
                 <label

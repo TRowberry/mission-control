@@ -837,10 +837,11 @@ model AgentConfig {
   scheduledCommand     String? @db.Text // Command to run on scheduled triggers (script agents)
 
   // Capabilities
-  canSendMessages Boolean @default(true)
-  canEditTasks    Boolean @default(true)
-  canCreateTasks  Boolean @default(false)
-  canNotifyUsers  Boolean @default(true)
+  canSendMessages   Boolean @default(true)
+  canEditTasks      Boolean @default(true)
+  canCreateTasks    Boolean @default(false)
+  canCreateSubtasks Boolean @default(false)
+  canNotifyUsers    Boolean @default(true)
 
   // Approval Settings
   // JSON array of action types requiring approval (e.g., ["fetch", "code", "unknown"])

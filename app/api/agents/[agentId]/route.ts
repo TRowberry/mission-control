@@ -43,6 +43,7 @@ export const GET = withAuthParams(async (
           canSendMessages: true,
           canEditTasks: true,
           canCreateTasks: true,
+          canCreateSubtasks: true,
           canNotifyUsers: true,
           requireApprovalFor: true,
           actionsPerMinute: true,
@@ -168,6 +169,7 @@ export const PATCH = withAuthParams(async (
     canSendMessages,
     canEditTasks,
     canCreateTasks,
+    canCreateSubtasks,
     canNotifyUsers,
     requireApprovalFor,
     actionsPerMinute,
@@ -200,6 +202,7 @@ export const PATCH = withAuthParams(async (
   if (canSendMessages !== undefined) configUpdate.canSendMessages = canSendMessages;
   if (canEditTasks !== undefined) configUpdate.canEditTasks = canEditTasks;
   if (canCreateTasks !== undefined) configUpdate.canCreateTasks = canCreateTasks;
+  if (canCreateSubtasks !== undefined) configUpdate.canCreateSubtasks = canCreateSubtasks;
   if (canNotifyUsers !== undefined) configUpdate.canNotifyUsers = canNotifyUsers;
   if (requireApprovalFor !== undefined) configUpdate.requireApprovalFor = requireApprovalFor;
   if (actionsPerMinute !== undefined) configUpdate.actionsPerMinute = actionsPerMinute;
