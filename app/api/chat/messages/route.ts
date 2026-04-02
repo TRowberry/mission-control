@@ -24,23 +24,21 @@ async function wakeAgent(
       
       console.log(`[Agent Wake] Waking Rico via OpenClaw gateway`);
       
-      const response = await fetch(`${OPENCLAW_GATEWAY_URL}/v1/chat/completions`, {
+      const response = await fetch(`${OPENCLAW_GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
         },
         body: JSON.stringify({
-          model: 'openclaw',
-          messages: [
-            {
-              role: 'user',
-              content: `System: ${wakeMessage}`,
-            },
-          ],
-          stream: false,
+          tool: 'cron',
+          args: {
+            action: 'wake',
+            text: wakeMessage,
+            mode: 'now',
+          },
         }),
-        signal: AbortSignal.timeout(120000), // Agent may take time to respond
+        signal: AbortSignal.timeout(10000),
       });
 
       if (response.ok) {
