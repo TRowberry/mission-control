@@ -510,6 +510,7 @@ function GanttView({
                   task={task}
                   timelineStart={timelineStart}
                   totalDays={totalDays}
+                  onTaskClick={onTaskClick}
                 />
               ))}
             </div>
@@ -540,10 +541,12 @@ function GanttRow({
   task,
   timelineStart,
   totalDays,
+  onTaskClick,
 }: {
   task: Task;
   timelineStart: Date;
   totalDays: number;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const barColor = getPriorityBar(task.priority);
 
