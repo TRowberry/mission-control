@@ -6,6 +6,14 @@ import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if registration is disabled
+    if (process.env.REGISTRATION_DISABLED === 'true') {
+      return NextResponse.json(
+        { error: 'Registration is currently disabled' },
+        { status: 403 }
+      );
+    }
+
     // Rate limit: 3 registration attempts per hour per IP
     const clientIp = getClientIp(request);
     const rateCheck = checkRateLimit(`register:${clientIp}`, RATE_LIMITS.register);

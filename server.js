@@ -24,10 +24,14 @@ app.prepare().then(() => {
   });
 
   // Initialize Socket.io
+  const allowedOrigins = process.env.NEXT_PUBLIC_APP_URL
+    ? [process.env.NEXT_PUBLIC_APP_URL]
+    : ['*'];
   const io = new Server(httpServer, {
     cors: {
-      origin: '*',
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     // Increase timeout for slower connections
     pingTimeout: 60000,
