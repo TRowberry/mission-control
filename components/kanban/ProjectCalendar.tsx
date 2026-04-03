@@ -33,6 +33,7 @@ interface ProjectData {
 
 interface ProjectCalendarProps {
   projectId: string;
+  onTaskClick?: (taskId: string) => void;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -117,7 +118,7 @@ function getCalendarWeeks(year: number, month: number): Date[][] {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function ProjectCalendar({ projectId }: ProjectCalendarProps) {
+export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalendarProps) {
   const [view, setView] = useState<ViewMode>('calendar');
   const [data, setData] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -343,7 +344,8 @@ function CalendarView({
                       <div
                         key={t.id}
                         title={t.title}
-                        className={`truncate text-[10px] px-1.5 py-0.5 rounded border-l-2 cursor-default ${style.bg} ${style.border} ${style.text}`}
+                        onClick={() => onTaskClick?.(t.id)}
+                        className={`truncate text-[10px] px-1.5 py-0.5 rounded border-l-2 ${onTaskClick ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${style.bg} ${style.border} ${style.text}`}
                       >
                         {t.title}
                       </div>
@@ -374,7 +376,8 @@ function CalendarView({
                 <div
                   key={t.id}
                   title={t.title}
-                  className={`text-[11px] px-2 py-0.5 rounded border-l-2 cursor-default ${style.bg} ${style.border} ${style.text}`}
+                  onClick={() => onTaskClick?.(t.id)}
+                  className={`text-[11px] px-2 py-0.5 rounded border-l-2 ${onTaskClick ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${style.bg} ${style.border} ${style.text}`}
                 >
                   {t.title}
                 </div>
@@ -593,7 +596,11 @@ function GanttRow({
             className="w-4 h-4 rounded-full shrink-0"
           />
         )}
-        <span className="text-xs text-gray-300 truncate" title={task.title}>
+        <span
+          className={`text-xs text-gray-300 truncate ${onTaskClick ? 'cursor-pointer hover:text-white' : ''}`}
+          title={task.title}
+          onClick={() => onTaskClick?.(task.id)}
+        >
           {task.title}
         </span>
       </div>
@@ -608,6 +615,7 @@ function GanttRow({
             style={{
               left: barLeft,
               width: isDot ? 10 : barWidth,
+              ...(onTaskClick ? { cursor: 'pointer' } : {}),
               ...(fadeRight
                 ? {
                     maskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
@@ -616,6 +624,7 @@ function GanttRow({
                 : {}),
             }}
             title={`${task.title}${task.startDate ? `\nStart: ${task.startDate}` : ''}${task.dueDate ? `\nDue: ${task.dueDate}` : ''}`}
+            onClick={() => onTaskClick?.(task.id)}
           >
             {!isDot && barWidth > 60 && (
               <span className="absolute inset-0 flex items-center px-1.5 text-[9px] text-white/80 font-medium truncate">

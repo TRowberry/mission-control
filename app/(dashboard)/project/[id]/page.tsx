@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import KanbanBoard from '@/components/kanban/KanbanBoard';
 import ActivityPanel from '@/components/kanban/ActivityPanel';
 import ProjectCalendar from '@/components/kanban/ProjectCalendar';
+import TaskPanel from '@/components/kanban/TaskPanel';
 
 interface Project {
   id: string;
@@ -84,6 +85,9 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [showActivity, setShowActivity] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [calendarSelectedTask, setCalendarSelectedTask] = useState<any>(null);
+  const [calendarSelectedColumnId, setCalendarSelectedColumnId] = useState<string>('');
+  const [columns, setColumns] = useState<any[]>([]);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,12 +109,32 @@ export default function ProjectPage() {
     }
   }, [showMoreMenu]);
 
+  const handleCalendarTaskClick = useCallback(async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/kanban/projects?id=${projectId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setColumns(data.columns || []);
+      for (const col of (data.columns || [])) {
+        const task = col.tasks?.find((t: any) => t.id === taskId);
+        if (task) {
+          setCalendarSelectedTask(task);
+          setCalendarSelectedColumnId(col.id);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch task for panel:', error);
+    }
+  }, [projectId]);
+
   const fetchProject = async () => {
     try {
       const res = await fetch(`/api/kanban/projects?id=${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setProject(data);
+        setColumns(data.columns || []);
       } else {
         console.error('Failed to fetch project');
       }
@@ -324,7 +348,18 @@ export default function ProjectPage() {
           )}
           
           {currentTab === 'calendar' && (
-            <ProjectCalendar projectId={projectId} />
+            <ProjectCalendar projectId={projectId} onTaskClick={handleCalendarTaskClick} />
+          )}
+
+          {/* Task Panel for Calendar/Gantt clicks */}
+          {calendarSelectedTask && currentTab === 'calendar' && (
+            <TaskPanel
+              task={calendarSelectedTask}
+              columnId={calendarSelectedColumnId}
+              columns={columns}
+              onClose={() => setCalendarSelectedTask(null)}
+              onUpdate={() => fetchProject()}
+            />
           )}
         </div>
 
