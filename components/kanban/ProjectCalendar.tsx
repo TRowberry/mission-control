@@ -254,9 +254,10 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
             year={viewYear}
             month={viewMonth}
             today={today}
+            onTaskClick={onTaskClick}
           />
         ) : (
-          <GanttView columns={data?.columns ?? []} today={today} />
+          <GanttView columns={data?.columns ?? []} today={today} onTaskClick={onTaskClick} />
         )}
       </div>
     </div>
@@ -270,11 +271,13 @@ function CalendarView({
   year,
   month,
   today,
+  onTaskClick,
 }: {
   allTasks: Task[];
   year: number;
   month: number;
   today: Date;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const weeks = useMemo(() => getCalendarWeeks(year, month), [year, month]);
 
@@ -398,9 +401,11 @@ const GANTT_LABEL_WIDTH = 220; // px for task label column
 function GanttView({
   columns,
   today,
+  onTaskClick,
 }: {
   columns: Column[];
   today: Date;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
