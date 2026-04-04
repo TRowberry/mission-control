@@ -219,7 +219,7 @@ export default function ProjectPage() {
       {/* Project Header */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         {/* Top row: project name and actions */}
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center justify-between px-3 md:px-6 py-3 md:py-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/kanban')}
@@ -312,7 +312,7 @@ export default function ProjectPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex items-center gap-1 px-6">
+        <div className="flex items-center gap-1 px-3 md:px-6 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.key;
@@ -519,7 +519,7 @@ function OverviewTab({ projectId, project }: { projectId: string; project: Proje
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -572,7 +572,7 @@ function OverviewTab({ projectId, project }: { projectId: string; project: Proje
         </div>
 
         {/* Two Column Layout: Recent Tasks + Activity */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Recent Tasks */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
