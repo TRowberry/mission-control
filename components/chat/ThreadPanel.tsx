@@ -131,7 +131,7 @@ export default function ThreadPanel({ threadId, parentMessage, channelId, curren
   if (!parentMessage) return null;
 
   return (
-    <div className="w-96 border-l border-gray-700 bg-[#313338] flex flex-col h-full">
+    <div className="w-full md:w-96 border-l border-gray-700 bg-[#313338] flex flex-col h-full">
       {/* Header */}
       <div className="h-12 px-4 flex items-center justify-between border-b border-gray-700 shrink-0">
         <div className="flex items-center gap-2">

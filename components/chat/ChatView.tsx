@@ -118,15 +118,24 @@ export default function ChatView({ channelId, currentUser }: ChatViewProps) {
         />
       </div>
 
-      {/* Thread panel */}
+      {/* Thread panel - full screen overlay on mobile, side panel on desktop */}
       {threadInfo && (
-        <ThreadPanel
-          threadId={threadInfo.threadId}
-          parentMessage={threadInfo.parentMessage}
-          channelId={channelId}
-          currentUser={currentUser}
-          onClose={() => setThreadInfo(null)}
-        />
+        <>
+          {/* Mobile backdrop */}
+          <div 
+            className="md:hidden fixed inset-0 bg-black/50 z-40"
+            onClick={() => setThreadInfo(null)}
+          />
+          <div className="fixed inset-0 z-50 md:relative md:inset-auto md:z-auto">
+            <ThreadPanel
+              threadId={threadInfo.threadId}
+              parentMessage={threadInfo.parentMessage}
+              channelId={channelId}
+              currentUser={currentUser}
+              onClose={() => setThreadInfo(null)}
+            />
+          </div>
+        </>
       )}
     </div>
   );

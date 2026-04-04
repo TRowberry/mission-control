@@ -581,8 +581,9 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
           'fixed right-0 top-0 h-full w-full bg-white dark:bg-[#1E1F22] shadow-2xl z-50',
           'flex flex-col transform transition-all duration-200 ease-out',
           isVisible ? 'translate-x-0' : 'translate-x-full',
-          // Wider when in review mode
-          reviewViewMode === 'review' ? 'max-w-4xl' : 'max-w-xl'
+          // Full screen on mobile, constrained on desktop
+          'max-w-none md:max-w-xl',
+          reviewViewMode === 'review' && 'md:max-w-4xl'
         )}
       >
         {/* Header */}

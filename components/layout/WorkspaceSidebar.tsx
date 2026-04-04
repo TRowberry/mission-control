@@ -21,6 +21,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMobile } from './MobileContext';
 import CreateChannelModal from '@/components/chat/CreateChannelModal';
 import ChannelSettingsModal from '@/components/chat/ChannelSettingsModal';
 import AgentSettingsModal from '@/components/agents/AgentSettingsModal';
@@ -81,6 +82,7 @@ interface Project {
 
 interface WorkspaceSidebarProps {
   user: User;
+  mobile?: boolean;
 }
 
 const channelIcons: Record<string, typeof Hash> = {
@@ -89,10 +91,16 @@ const channelIcons: Record<string, typeof Hash> = {
   announcement: Megaphone,
 };
 
-export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
+export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isUserOnline } = useSocket();
+  const { closeSidebar, isMobile } = useMobile();
+
+  const handleNav = () => {
+    if (isMobile) closeSidebar();
+  };
+
   const [channels, setChannels] = useState<Channel[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -345,26 +353,28 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
       <div 
         ref={sidebarRef}
         className="bg-sidebar-bg flex flex-col relative"
-        style={{ width: sidebarWidth }}
+        style={{ width: mobile ? 260 : sidebarWidth }}
       >
-        {/* Resize handle - positioned at right edge, extends slightly beyond */}
-        <div
-          className={cn(
-            'absolute -right-1 top-0 bottom-0 w-3 cursor-col-resize z-50 flex items-center justify-center',
-            'hover:bg-primary/20'
-          )}
-          onMouseDown={handleMouseDown}
-          onMouseEnter={() => setIsHoveringResize(true)}
-          onMouseLeave={() => setIsHoveringResize(false)}
-        >
-          {/* Visual indicator line */}
+        {/* Resize handle - hidden on mobile */}
+        {!mobile && (
           <div
             className={cn(
-              'w-0.5 h-full transition-all duration-150',
-              isResizing ? 'bg-primary w-1' : isHoveringResize ? 'bg-primary' : 'bg-gray-600 hover:bg-primary'
+              'absolute -right-1 top-0 bottom-0 w-3 cursor-col-resize z-50 flex items-center justify-center',
+              'hover:bg-primary/20'
             )}
-          />
-        </div>
+            onMouseDown={handleMouseDown}
+            onMouseEnter={() => setIsHoveringResize(true)}
+            onMouseLeave={() => setIsHoveringResize(false)}
+          >
+            {/* Visual indicator line */}
+            <div
+              className={cn(
+                'w-0.5 h-full transition-all duration-150',
+                isResizing ? 'bg-primary w-1' : isHoveringResize ? 'bg-primary' : 'bg-gray-600 hover:bg-primary'
+              )}
+            />
+          </div>
+        )}
         {/* Workspace header */}
         <div className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm cursor-pointer hover:bg-white/5">
           <h2 className="font-semibold truncate">Mission Control</h2>
@@ -377,6 +387,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
           <div className="px-2">
             <Link
               href="/dashboard"
+              onClick={handleNav}
               className={cn(
                 'channel-item',
                 pathname === '/dashboard' && 'active'
@@ -387,6 +398,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
             </Link>
             <Link
               href="/kanban"
+              onClick={handleNav}
               className={cn(
                 'channel-item',
                 pathname.startsWith('/kanban') && 'active'
@@ -397,6 +409,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
             </Link>
             <Link
               href="/notifications"
+              onClick={handleNav}
               className={cn(
                 'channel-item',
                 pathname === '/notifications' && 'active'
@@ -407,6 +420,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
             </Link>
             <Link
               href="/pages"
+              onClick={handleNav}
               className={cn(
                 'channel-item',
                 pathname.startsWith('/pages') && 'active'
@@ -472,6 +486,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
                       >
                         <Link
                           href={`/chat/${channel.id}`}
+                          onClick={handleNav}
                           className="flex-1 flex items-center gap-2 px-2 py-1.5"
                         >
                           <Icon className={cn(
@@ -552,6 +567,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
                       >
                         <Link
                           href={`/project/${project.id}`}
+                          onClick={handleNav}
                           className="flex-1 flex items-center gap-2 px-2 py-1.5"
                         >
                           <div 
@@ -635,6 +651,7 @@ export default function WorkspaceSidebar({ user }: WorkspaceSidebarProps) {
                       <Link
                         key={dm.id}
                         href={`/chat/${dm.channelId}`}
+                        onClick={handleNav}
                         className={cn(
                           'flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5',
                           isActive && 'bg-white/10'
