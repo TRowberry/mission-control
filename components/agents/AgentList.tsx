@@ -481,7 +481,7 @@ export default function AgentList() {
                         {menuOpen === agent.id && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute right-0 bottom-full mb-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 py-1">
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 py-1">
                               <button onClick={() => handleEdit(agent)} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/50">
                                 <Edit className="w-4 h-4" /> Edit
                               </button>
