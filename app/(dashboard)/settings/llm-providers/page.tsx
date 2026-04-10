@@ -137,7 +137,7 @@ export default function LLMProvidersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">LLM Providers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">LLM Providers</h1>
           <p className="text-gray-400 text-sm mt-1">
             Configure AI model providers for your agents
           </p>

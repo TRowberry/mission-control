@@ -152,10 +152,10 @@ export default async function DashboardPage() {
         <h1 className="font-semibold">Dashboard</h1>
       </header>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Welcome */}
         <div>
-          <h2 className="text-2xl font-bold">Welcome back, {user?.displayName}! 👋</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Welcome back, {user?.displayName}! 👋</h2>
           <p className="text-gray-400 mt-1">Here&apos;s what&apos;s happening today.</p>
         </div>
 

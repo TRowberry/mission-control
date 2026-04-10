@@ -98,7 +98,7 @@ export default function RegisterPage() {
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <Rocket className="w-10 h-10 text-primary" />
           </Link>
-          <h1 className="text-2xl font-bold">Create an account</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Create an account</h1>
           <p className="text-gray-400 mt-2">Get started with Mission Control</p>
         </div>
 
@@ -123,7 +123,7 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1.5">
                 Username
@@ -186,7 +186,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary w-full py-2.5"
+            className="btn btn-primary w-full min-h-[44px] py-2.5"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />

@@ -485,20 +485,20 @@ function OverviewTab({ projectId, project }: { projectId: string; project: Proje
   }
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
+    <div className="h-full overflow-auto p-4 md:p-6">
+      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
+
         {/* Project Header Card */}
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-start gap-4">
-            <div 
-              className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-2xl font-bold flex-shrink-0"
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl p-4 md:p-6 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div
+              className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white text-xl md:text-2xl font-bold flex-shrink-0"
               style={{ backgroundColor: project.color }}
             >
               {project.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {project.name}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -519,7 +519,7 @@ function OverviewTab({ projectId, project }: { projectId: string; project: Proje
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">

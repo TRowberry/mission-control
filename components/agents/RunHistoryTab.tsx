@@ -268,7 +268,7 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
     <div className="space-y-6">
       {/* Stats Overview */}
       {runStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-gray-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
               <PlayCircle className="w-3 h-3" />

@@ -332,8 +332,8 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#313338] rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col mx-2 md:mx-0">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-[#313338] sm:rounded-lg shadow-xl w-full sm:max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-t-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center gap-3">
@@ -349,7 +349,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-200 transition-colors">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -444,7 +444,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
               {!isEditing && (
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Start from template</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {ROLE_TEMPLATES.map(template => (
                       <button
                         key={template.id}
@@ -464,7 +464,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Username *</label>
                   <div className="flex">
@@ -645,7 +645,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
                   placeholder="Define the agent's behavior, responsibilities, and communication style..." />
                 <p className="text-xs text-gray-500 mt-1">This prompt defines how the agent behaves and responds</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Trigger Type</label>
                   <select value={formData.triggerType} onChange={e => updateField('triggerType', e.target.value)}
@@ -718,7 +718,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
               <div className="mt-6 pt-6 border-t border-gray-700">
                 <h4 className="text-sm font-medium text-white mb-2">Actions Requiring Approval</h4>
                 <p className="text-sm text-gray-400 mb-4">Select which actions need human approval before execution</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {ALL_ACTION_TYPES.map(action => (
                     <label
                       key={action.key}
@@ -751,7 +751,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
           {activeTab === 'limits' && (
             <div className="space-y-6">
               <p className="text-sm text-gray-400 mb-4">Set limits to prevent runaway agents and control costs</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Actions per Minute</label>
                   <input type="number" value={formData.actionsPerMinute}
@@ -767,7 +767,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
                     min={1} max={1000} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Daily Token Limit</label>
                   <input type="number" value={formData.dailyTokenLimit ?? ''}
@@ -792,7 +792,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
           {activeTab === 'resources' && (
             <div className="space-y-6">
               <p className="text-sm text-gray-400 mb-4">Configure resource limits for agent execution</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Memory Limit (MB)</label>
                   <input type="number" value={formData.memoryLimitMb}

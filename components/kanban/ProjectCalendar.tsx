@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, BarChart3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, BarChart3, Clock, CheckCircle2 } from 'lucide-react';
+import { useMobile } from '@/components/layout/MobileContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ function getCalendarWeeks(year: number, month: number): Date[][] {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalendarProps) {
+  const { isMobile } = useMobile();
   const [view, setView] = useState<ViewMode>('calendar');
   const [data, setData] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,6 +176,60 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  // Mobile: show compact task list instead of calendar/gantt
+  if (isMobile) {
+    const sortedTasks = [...allTasks].sort((a, b) => {
+      const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+      const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+      return aDate - bDate;
+    });
+    const todayStr = dateKey(today);
+    return (
+      <div className="flex flex-col h-full bg-gray-800 text-gray-100">
+        <div className="px-4 py-3 border-b border-gray-700">
+          <p className="text-xs text-gray-400">Calendar &amp; Gantt views are available on desktop. Showing task timeline below.</p>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-700/50">
+          {sortedTasks.length === 0 && (
+            <div className="p-6 text-center text-gray-400 text-sm">No tasks with dates</div>
+          )}
+          {sortedTasks.map(task => {
+            const dueKey = task.dueDate ? dateKey(new Date(task.dueDate)) : null;
+            const isOverdue = dueKey && dueKey < todayStr && !task.completedAt;
+            const isDueToday = dueKey === todayStr;
+            return (
+              <button
+                key={task.id}
+                onClick={() => onTaskClick?.(task.id)}
+                className="w-full text-left px-4 py-3 min-h-[56px] hover:bg-gray-700/40 active:bg-gray-700/60 transition-colors flex items-center gap-3"
+              >
+                {task.completedAt ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                ) : (
+                  <Clock className={`w-4 h-4 flex-shrink-0 ${isOverdue ? 'text-red-400' : isDueToday ? 'text-yellow-400' : 'text-gray-500'}`} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${task.completedAt ? 'line-through text-gray-500' : 'text-white'}`}>{task.title}</p>
+                  {dueKey && (
+                    <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-400' : isDueToday ? 'text-yellow-400' : 'text-gray-400'}`}>
+                      {isOverdue ? 'Overdue · ' : isDueToday ? 'Due today · ' : ''}{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : ''}
+                    </p>
+                  )}
+                  {!dueKey && <p className="text-xs text-gray-500 mt-0.5">No due date</p>}
+                </div>
+                {task.priority && task.priority !== 'none' && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITY_COLORS[task.priority]?.bg ?? ''} ${PRIORITY_COLORS[task.priority]?.text ?? ''}`}>
+                    {task.priority}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -223,7 +279,7 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
           <div className="flex items-center gap-2">
             <button
               onClick={() => goMonth(-1)}
-              className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+              className="p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
             >
               <ChevronLeft size={18} />
             </button>
@@ -232,7 +288,7 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
             </span>
             <button
               onClick={() => goMonth(1)}
-              className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+              className="p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
             >
               <ChevronRight size={18} />
             </button>

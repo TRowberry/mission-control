@@ -281,17 +281,17 @@ export default function AgentList() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start sm:items-center justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Agents</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Agents</h1>
           <p className="text-gray-400 text-sm mt-1">
             Manage AI agents that can automate tasks in your workspace
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={fetchAgents}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
             title="Refresh"
           >
             <RefreshCw className="w-5 h-5" />
@@ -301,10 +301,11 @@ export default function AgentList() {
               setEditingAgent(null);
               setShowModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm sm:text-base"
           >
             <Plus className="w-4 h-4" />
-            Create Agent
+            <span className="hidden sm:inline">Create Agent</span>
+            <span className="sm:hidden">New</span>
           </button>
         </div>
       </div>
@@ -416,8 +417,8 @@ export default function AgentList() {
           </button>
         </div>
       ) : (
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg">
-          <table className="w-full">
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="bg-gray-900/50 border-b border-gray-700/50">
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Agent</th>
