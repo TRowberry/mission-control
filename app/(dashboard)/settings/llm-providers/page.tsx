@@ -133,28 +133,31 @@ export default function LLMProvidersPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="h-full overflow-y-auto">
+    <div className="max-w-4xl mx-auto p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start sm:items-center justify-between mb-4 md:mb-6 gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-white">LLM Providers</h1>
           <p className="text-gray-400 text-sm mt-1">
             Configure AI model providers for your agents
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={fetchProviders}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+            title="Refresh"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
           <button
             onClick={() => { setEditingProvider(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm sm:text-base"
           >
             <Plus className="w-4 h-4" />
-            Add Provider
+            <span className="hidden sm:inline">Add Provider</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -193,11 +196,11 @@ export default function LLMProvidersPage() {
                   provider.isEnabled ? "border-gray-700/50" : "border-gray-700/30 opacity-60"
                 )}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="text-2xl">{template?.icon || '🔌'}</div>
-                    <div>
-                      <div className="flex items-center gap-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="text-2xl flex-shrink-0">{template?.icon || '🔌'}</div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-medium text-white">{provider.displayName}</h3>
                         {provider.isDefault && (
                           <span className="flex items-center gap-1 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">
@@ -210,33 +213,38 @@ export default function LLMProvidersPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-400 mt-1">
+                      <p className="text-sm text-gray-400 mt-1 truncate">
                         {provider.endpoint || 'API configured'}
                       </p>
                       {provider.models.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-1 hidden sm:block">
                           Models: {provider.models.slice(0, 5).join(', ')}
                           {provider.models.length > 5 && ` +${provider.models.length - 5} more`}
+                        </p>
+                      )}
+                      {provider.models.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1 sm:hidden">
+                          {provider.models.length} model{provider.models.length !== 1 ? 's' : ''}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Health Status */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Health Status — icon only on mobile, badge on sm+ */}
                     <div className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded text-xs",
                       provider.isHealthy ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
                     )}>
                       {provider.isHealthy ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                      {provider.isHealthy ? 'Healthy' : 'Error'}
+                      <span className="hidden sm:inline">{provider.isHealthy ? 'Healthy' : 'Error'}</span>
                     </div>
 
                     {/* Actions */}
                     <button
                       onClick={() => handleTest(provider)}
                       disabled={testingId === provider.id}
-                      className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
                       title="Test connection"
                     >
                       {testingId === provider.id ? (
@@ -248,7 +256,7 @@ export default function LLMProvidersPage() {
                     {!provider.isDefault && (
                       <button
                         onClick={() => handleSetDefault(provider)}
-                        className="p-2 text-gray-400 hover:text-yellow-400 hover:bg-gray-700/50 rounded-lg"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-yellow-400 hover:bg-gray-700/50 rounded-lg"
                         title="Set as default"
                       >
                         <Star className="w-4 h-4" />
@@ -256,13 +264,15 @@ export default function LLMProvidersPage() {
                     )}
                     <button
                       onClick={() => { setEditingProvider(provider); setShowModal(true); }}
-                      className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg"
+                      title="Edit"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(provider)}
-                      className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700/50 rounded-lg"
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-gray-700/50 rounded-lg"
+                      title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -288,6 +298,7 @@ export default function LLMProvidersPage() {
           onSave={() => { setShowModal(false); setEditingProvider(null); fetchProviders(); }}
         />
       )}
+    </div>
     </div>
   );
 }
@@ -351,18 +362,18 @@ function ProviderModal({ provider, onClose, onSave }: ProviderModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#313338] rounded-lg shadow-xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-[#313338] rounded-t-2xl sm:rounded-lg shadow-xl w-full sm:max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 shrink-0">
           <h2 className="text-lg font-semibold text-white">
             {isEditing ? 'Edit Provider' : 'Add LLM Provider'}
           </h2>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto touch-pan-y">
           {/* Provider Type */}
           {!isEditing && (
             <div>
@@ -471,14 +482,14 @@ function ProviderModal({ provider, onClose, onSave }: ProviderModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-300 hover:text-white"
+              className="px-4 py-2 min-h-[44px] text-gray-300 hover:text-white rounded-lg"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 min-h-[44px] bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditing ? 'Save Changes' : 'Add Provider'}
