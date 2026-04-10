@@ -367,21 +367,23 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
         )}
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-700 overflow-x-auto">
+        <div className="flex border-b border-gray-700 overflow-x-auto shrink-0">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
                   activeTab === tab.id
                     ? 'text-white border-b-2 border-indigo-500'
                     : 'text-gray-400 hover:text-gray-200'
                 )}
               >
-                <Icon className="w-4 h-4" />{tab.label}
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );
           })}
@@ -390,54 +392,62 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
             <>
               <button
                 onClick={() => setActiveTab('flows')}
+                title="Flows"
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
                   activeTab === 'flows'
                     ? 'text-white border-b-2 border-indigo-500'
                     : 'text-gray-400 hover:text-gray-200'
                 )}
               >
-                <GitBranch className="w-4 h-4" />Flows
+                <GitBranch className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Flows</span>
               </button>
               <button
                 onClick={() => setActiveTab('history')}
+                title="History"
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
                   activeTab === 'history'
                     ? 'text-white border-b-2 border-indigo-500'
                     : 'text-gray-400 hover:text-gray-200'
                 )}
               >
-                <History className="w-4 h-4" />History
+                <History className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">History</span>
               </button>
               <button
                 onClick={() => setActiveTab('memory')}
+                title="Memory"
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
                   activeTab === 'memory'
                     ? 'text-white border-b-2 border-indigo-500'
                     : 'text-gray-400 hover:text-gray-200'
                 )}
               >
-                <Brain className="w-4 h-4" />Memory
+                <Brain className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Memory</span>
               </button>
               <button
                 onClick={() => setActiveTab('browse')}
+                title="Browse"
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
                   activeTab === 'browse'
                     ? 'text-white border-b-2 border-indigo-500'
                     : 'text-gray-400 hover:text-gray-200'
                 )}
               >
-                <Database className="w-4 h-4" />Browse
+                <Database className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Browse</span>
               </button>
             </>
           )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 touch-pan-y">
           {/* Basic Info Tab */}
           {activeTab === 'basic' && (
             <div className="space-y-6">
@@ -879,7 +889,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center p-4 border-t border-gray-700">
+        <div className="flex justify-between items-center p-4 border-t border-gray-700 shrink-0">
           <div className="text-sm text-gray-400">
             {activeTab !== 'basic' && (
               <button
