@@ -192,11 +192,11 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
   return (
     <>
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-200px)] snap-x snap-mandatory md:snap-none touch-pan-x">
+        <div className="flex gap-4 overflow-x-auto pb-4 h-full snap-x snap-mandatory md:snap-none">
           {columns.map((column) => (
             <div
               key={column.id}
-              className="flex-shrink-0 w-[85vw] md:w-72 bg-[#2B2D31] rounded-lg flex flex-col snap-center md:snap-align-none"
+              className="flex-shrink-0 w-[85vw] md:w-72 bg-[#2B2D31] rounded-lg flex flex-col h-full snap-center md:snap-align-none"
             >
               {/* Column header */}
               <div className="flex items-center justify-between p-3 border-b border-gray-700">
@@ -222,7 +222,7 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      'flex-1 p-2 overflow-y-auto space-y-2 min-h-[100px]',
+                      'flex-1 p-2 overflow-y-auto space-y-2 min-h-[100px] touch-pan-y',
                       snapshot.isDraggingOver && 'bg-white/5'
                     )}
                   >
