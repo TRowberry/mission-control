@@ -9,6 +9,123 @@ import { getOpenClawGatewayUrl } from '@/lib/llm-providers';
 const OPENCLAW_GATEWAY_URL = getOpenClawGatewayUrl();
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 
+// Simple UUID v4 generator (no crypto dependency needed)
+function randomId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+/**
+ * Wake Rico via the OpenClaw gateway WebSocket protocol.
+ *
+ * The gateway uses WebSocket with a challenge-response auth.
+ * Message format: {type: "req", id: "<uuid>", method: "<method>", params: {...}}
+ * Response format: {type: "res", id: "<uuid>", ok: bool, payload?: {...}, error?: {...}}
+ * Event format: {type: "event", event: "<name>", payload: {...}}
+ *
+ * After connecting, we send a chat.send to Rico's main session to trigger
+ * him to check the MC feed for new mentions.
+ */
+async function wakeRicoViaGatewayWS(
+  gatewayUrl: string,
+  token: string,
+  sessionKey: string,
+  wakeMessage: string,
+): Promise<void> {
+  // Convert http:// URL to ws://
+  const wsUrl = gatewayUrl.replace(/^https?:\/\//, (m) => m === 'https://' ? 'wss://' : 'ws://');
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const done = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { ws.close(); } catch {}
+      if (err) reject(err); else resolve();
+    };
+
+    const timer = setTimeout(() => done(new Error('Wake WS timed out')), 12000);
+
+    // Dynamic require to avoid bundling issues in Next.js
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const WS = require('ws');
+    const ws = new WS(wsUrl);
+    const pending = new Map<string, { method: string }>();
+
+    const sendReq = (method: string, params: Record<string, unknown>) => {
+      const id = randomId();
+      ws.send(JSON.stringify({ type: 'req', id, method, params }));
+      pending.set(id, { method });
+      return id;
+    };
+
+    ws.on('open', () => {
+      // Wait for connect.challenge event from the server before sending connect
+    });
+
+    ws.on('message', (raw: Buffer | string) => {
+      let msg: Record<string, unknown>;
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+      if (msg.type === 'event') {
+        const evt = msg as { type: string; event: string; payload?: unknown };
+        if (evt.event === 'connect.challenge') {
+          // Server challenges us — respond with connect request
+          sendReq('connect', {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: { id: 'openclaw-control-ui', version: 'mc-wake/1.0', platform: 'node', mode: 'ui' },
+            role: 'operator',
+            scopes: ['operator.read', 'operator.write', 'operator.admin'],
+            caps: ['tool-events'],
+            auth: { token },
+            userAgent: 'mission-control-agent-wake/1.0',
+            locale: 'en-US',
+          });
+        }
+        return;
+      }
+
+      if (msg.type === 'res') {
+        const res = msg as { type: string; id: string; ok: boolean; payload?: unknown; error?: { message?: string } };
+        const p = pending.get(res.id);
+        if (!p) return;
+        pending.delete(res.id);
+
+        if (p.method === 'connect') {
+          if (!res.ok) {
+            done(new Error(`Gateway connect failed: ${res.error?.message ?? 'unknown'}`));
+            return;
+          }
+          // Connected — now send chat.send to wake Rico's session
+          sendReq('chat.send', {
+            sessionKey,
+            message: wakeMessage,
+            deliver: false,
+            idempotencyKey: randomId(),
+          });
+          return;
+        }
+
+        if (p.method === 'chat.send') {
+          if (res.ok) {
+            done();
+          } else {
+            done(new Error(`chat.send failed: ${res.error?.message ?? 'unknown'}`));
+          }
+          return;
+        }
+      }
+    });
+
+    ws.on('error', (err: Error) => done(err));
+    ws.on('close', () => done(new Error('Gateway WS closed unexpectedly')));
+  });
+}
+
 // Wake an agent via webhook or OpenClaw gateway
 async function wakeAgent(
   agentId: string,
@@ -17,40 +134,23 @@ async function wakeAgent(
   messageId: string,
   webhookUrl: string | null
 ) {
-  // Special handling for Rico - use OpenClaw gateway chat completions API
-  if (agentUsername.toLowerCase() === 'rico' && OPENCLAW_GATEWAY_TOKEN) {
+  // Special handling for Rico - use OpenClaw gateway WebSocket to deliver a chat message
+  if (agentUsername.toLowerCase() === 'rico' && OPENCLAW_GATEWAY_URL && OPENCLAW_GATEWAY_TOKEN) {
     try {
-      const wakeMessage = `@${agentUsername} mentioned in Mission Control (channel: ${channelId}, message: ${messageId})`;
-      
-      console.log(`[Agent Wake] Waking Rico via OpenClaw gateway`);
-      
-      const response = await fetch(`${OPENCLAW_GATEWAY_URL}/tools/invoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
-        },
-        body: JSON.stringify({
-          tool: 'cron',
-          args: {
-            action: 'wake',
-            text: wakeMessage,
-            mode: 'now',
-          },
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
+      const wakeMessage = `You have a new @mention in Mission Control! Channel: ${channelId}, Message: ${messageId}. Please check your MC feed now.`;
+      console.log(`[Agent Wake] Waking Rico via OpenClaw gateway WS`);
 
-      if (response.ok) {
-        console.log(`[Agent Wake] Successfully woke Rico via gateway`);
-      } else {
-        const err = await response.text();
-        console.error(`[Agent Wake] Gateway wake failed: HTTP ${response.status} - ${err}`);
-      }
+      await wakeRicoViaGatewayWS(
+        OPENCLAW_GATEWAY_URL,
+        OPENCLAW_GATEWAY_TOKEN,
+        'agent:main:main',
+        wakeMessage,
+      );
+      console.log(`[Agent Wake] Successfully woke Rico via gateway WS`);
       return;
     } catch (err) {
-      console.error(`[Agent Wake] Failed to wake Rico via gateway:`, err);
-      // Fall through to webhook if gateway fails
+      console.error(`[Agent Wake] Gateway WS wake failed:`, err);
+      // Fall through to webhook if gateway WS fails
     }
   }
 
