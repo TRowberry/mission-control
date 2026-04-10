@@ -25,8 +25,8 @@ function randomId(): string {
  * Response format: {type: "res", id: "<uuid>", ok: bool, payload?: {...}, error?: {...}}
  * Event format: {type: "event", event: "<name>", payload: {...}}
  *
- * After connecting, we send a chat.send to Rico's main session to trigger
- * him to check the MC feed for new mentions.
+ * After connecting, we trigger the mc-mention-check cron job immediately
+ * so Rico checks the MC feed for new mentions right away.
  */
 async function wakeRicoViaGatewayWS(
   gatewayUrl: string,
@@ -100,21 +100,19 @@ async function wakeRicoViaGatewayWS(
             done(new Error(`Gateway connect failed: ${res.error?.message ?? 'unknown'}`));
             return;
           }
-          // Connected — now send chat.send to wake Rico's session
-          sendReq('chat.send', {
-            sessionKey,
-            message: wakeMessage,
-            deliver: false,
-            idempotencyKey: randomId(),
+          // Connected — trigger mc-mention-check cron job immediately
+          sendReq('cron.run', {
+            id: 'c748e20c-5ae7-4022-b8d1-88c572c4a28f',
+            mode: 'now',
           });
           return;
         }
 
-        if (p.method === 'chat.send') {
+        if (p.method === 'cron.run') {
           if (res.ok) {
             done();
           } else {
-            done(new Error(`chat.send failed: ${res.error?.message ?? 'unknown'}`));
+            done(new Error(`cron.run failed: ${res.error?.message ?? 'unknown'}`));
           }
           return;
         }
@@ -137,14 +135,13 @@ async function wakeAgent(
   // Special handling for Rico - use OpenClaw gateway WebSocket to deliver a chat message
   if (agentUsername.toLowerCase() === 'rico' && OPENCLAW_GATEWAY_URL && OPENCLAW_GATEWAY_TOKEN) {
     try {
-      const wakeMessage = `You have a new @mention in Mission Control! Channel: ${channelId}, Message: ${messageId}. Please check your MC feed now.`;
-      console.log(`[Agent Wake] Waking Rico via OpenClaw gateway WS`);
+      console.log(`[Agent Wake] Waking Rico via OpenClaw gateway WS (cron.run mc-mention-check)`);
 
       await wakeRicoViaGatewayWS(
         OPENCLAW_GATEWAY_URL,
         OPENCLAW_GATEWAY_TOKEN,
         'agent:main:main',
-        wakeMessage,
+        '',
       );
       console.log(`[Agent Wake] Successfully woke Rico via gateway WS`);
       return;
