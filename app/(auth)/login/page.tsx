@@ -55,7 +55,7 @@ export default function LoginPage() {
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <Rocket className="w-10 h-10 text-primary" />
           </Link>
-          <h1 className="text-2xl font-bold">Welcome back!</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Welcome back!</h1>
           <p className="text-gray-400 mt-2">Sign in to continue to Mission Control</p>
         </div>
 
@@ -97,7 +97,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary w-full py-2.5"
+            className="btn btn-primary w-full min-h-[44px] py-2.5"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />

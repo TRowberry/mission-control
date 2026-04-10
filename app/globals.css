@@ -74,6 +74,14 @@ body {
 /* Input base */
 .input {
   @apply w-full rounded-md bg-[#202225] px-3 py-2 text-sm text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary;
+  /* Prevent iOS auto-zoom on focus (requires font-size >= 16px on mobile) */
+  font-size: max(1rem, 16px);
+}
+
+@media (min-width: 640px) {
+  .input {
+    font-size: 0.875rem; /* revert to text-sm on larger screens */
+  }
 }
 
 /* Card base */
