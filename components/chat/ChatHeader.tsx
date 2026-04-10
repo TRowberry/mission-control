@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Hash, Users, Pin, Search, AtSign, HelpCircle, Settings } from 'lucide-react';
+import { Hash, Users, Pin, Search, AtSign, HelpCircle, Menu } from 'lucide-react';
 import SearchModal from './SearchModal';
 import MentionsDropdown from './MentionsDropdown';
 import NotificationDropdown from './NotificationDropdown';
 import ChannelSettingsModal from './ChannelSettingsModal';
 import PinnedMessagesPanel from './PinnedMessagesPanel';
+import { useMobile } from '@/components/layout/MobileContext';
 
 interface Channel {
   id: string;
@@ -28,6 +29,7 @@ export default function ChatHeader({ channel }: ChatHeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<'about' | 'members'>('about');
   const [pinnedOpen, setPinnedOpen] = useState(false);
+  const { toggleSidebar } = useMobile();
 
   const openMembersPanel = () => {
     setSettingsDefaultTab('members');
@@ -58,24 +60,32 @@ export default function ChatHeader({ channel }: ChatHeaderProps) {
 
   return (
     <>
-      <header className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm bg-chat-bg">
-        <div className="flex items-center gap-2">
-          <Hash className="w-5 h-5 text-gray-400" />
-          <h1 className="font-semibold">{channel.name}</h1>
+      <header className="h-12 px-3 flex items-center justify-between border-b border-black/20 shadow-sm bg-chat-bg shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={toggleSidebar}
+            className="md:hidden p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+            aria-label="Open sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <Hash className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <h1 className="font-semibold truncate">{channel.name}</h1>
           {channel.description && (
             <>
-              <span className="w-px h-4 bg-gray-600 mx-2" />
-              <p className="text-sm text-gray-400 truncate max-w-md">
+              <span className="hidden sm:block w-px h-4 bg-gray-600 mx-2 flex-shrink-0" />
+              <p className="hidden sm:block text-sm text-gray-400 truncate max-w-md">
                 {channel.description}
               </p>
             </>
           )}
         </div>
-        
-        <div className="flex items-center gap-4 relative">
-          <button 
+
+        <div className="flex items-center gap-2 md:gap-4 relative flex-shrink-0">
+          <button
             onClick={() => setPinnedOpen(!pinnedOpen)}
-            className={`text-gray-400 hover:text-gray-200 ${pinnedOpen ? 'text-yellow-500' : ''}`} 
+            className={`hidden sm:block text-gray-400 hover:text-gray-200 ${pinnedOpen ? 'text-yellow-500' : ''}`}
             title="Pinned Messages"
           >
             <Pin className="w-5 h-5" />
@@ -90,15 +100,15 @@ export default function ChatHeader({ channel }: ChatHeaderProps) {
             onClose={() => setNotificationsOpen(false)}
             onOpenChange={setNotificationsOpen}
           />
-          <button 
+          <button
             onClick={openMembersPanel}
-            className="text-gray-400 hover:text-gray-200" 
+            className="text-gray-400 hover:text-gray-200"
             title="Member List"
           >
             <Users className="w-5 h-5" />
           </button>
-          
-          <div className="relative">
+
+          <div className="relative hidden sm:block">
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -110,9 +120,17 @@ export default function ChatHeader({ channel }: ChatHeaderProps) {
               className="w-36 bg-[#202225] rounded pl-8 pr-2 py-1 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:w-48 transition-all"
             />
           </div>
-          
-          <div className="relative">
-            <button 
+          {/* Search icon-only on mobile */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="sm:hidden text-gray-400 hover:text-gray-200"
+            title="Search"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
+          <div className="relative hidden sm:block">
+            <button
               onClick={() => setMentionsOpen(!mentionsOpen)}
               className={`text-gray-400 hover:text-gray-200 ${mentionsOpen ? 'text-primary' : ''}`}
               title="Mentions"
@@ -124,7 +142,7 @@ export default function ChatHeader({ channel }: ChatHeaderProps) {
               onClose={() => setMentionsOpen(false)}
             />
           </div>
-          <button className="text-gray-400 hover:text-gray-200" title="Help">
+          <button className="hidden sm:block text-gray-400 hover:text-gray-200" title="Help">
             <HelpCircle className="w-5 h-5" />
           </button>
         </div>
