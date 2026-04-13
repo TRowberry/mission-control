@@ -1,197 +1,196 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Plus, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import KanbanBoard from '@/components/kanban/KanbanBoard';
+import { useRouter } from 'next/navigation';
+import { Plus, LayoutGrid, Archive } from 'lucide-react';
+import { useWorkspace } from '@/components/providers/WorkspaceContext';
 
 interface Project {
   id: string;
   name: string;
   description: string | null;
+  color: string;
+  archived: boolean;
   createdAt: string;
   _count: {
+    tasks: number;
     columns: number;
   };
 }
 
-export default function KanbanPage() {
-  const searchParams = useSearchParams();
-  const projectParam = searchParams.get('project');
-  const taskParam = searchParams.get('task');
-  
+export default function ProjectsPage() {
+  const router = useRouter();
+  const { activeWorkspaceId } = useWorkspace();
+
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showProjectMenu, setShowProjectMenu] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProjects();
-  }, []);
-
-  // Handle URL params after projects are loaded
-  useEffect(() => {
-    if (projects.length > 0 && projectParam) {
-      // Check if projectParam matches an actual project ID
-      const matchingProject = projects.find(p => p.id === projectParam);
-      if (matchingProject) {
-        setSelectedProjectId(matchingProject.id);
-        if (taskParam) {
-          setHighlightedTaskId(taskParam);
-        }
-      }
-    }
-  }, [projects, projectParam, taskParam]);
+  }, [activeWorkspaceId]);
 
   const fetchProjects = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/kanban/projects');
-      const data = await res.json();
-      setProjects(data);
-      
-      // Auto-select first project if none selected
-      if (data.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(data[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to fetch projects:', error);
+      const qs = activeWorkspaceId ? `?workspaceId=${activeWorkspaceId}` : '';
+      const res = await fetch(`/api/kanban/projects${qs}`);
+      if (res.ok) setProjects(await res.json());
     } finally {
       setLoading(false);
     }
   };
 
-  const createProject = async () => {
-    if (!newProjectName.trim()) return;
-
+  const createProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
     setCreating(true);
     try {
       const res = await fetch('/api/kanban/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newProjectName.trim() }),
+        body: JSON.stringify({ name: newName.trim(), workspaceId: activeWorkspaceId }),
       });
-      const project = await res.json();
-      setProjects([...projects, project]);
-      setSelectedProjectId(project.id);
-      setNewProjectName('');
-      setShowProjectMenu(false);
-    } catch (error) {
-      console.error('Failed to create project:', error);
+      if (res.ok) {
+        const project = await res.json();
+        setNewName('');
+        setShowNew(false);
+        router.push(`/project/${project.id}`);
+      }
     } finally {
       setCreating(false);
     }
   };
 
-  const selectedProject = projects.find((p) => p.id === selectedProjectId);
-
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const active = projects.filter(p => !p.archived);
+  const archived = projects.filter(p => p.archived);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Kanban</h1>
+      <div className="h-12 border-b border-black/20 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="w-4 h-4 text-gray-400" />
+          <span className="font-semibold">Projects</span>
+        </div>
+        <button
+          onClick={() => setShowNew(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90"
+        >
+          <Plus className="w-4 h-4" />
+          New Project
+        </button>
+      </div>
 
-          {/* Project Selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowProjectMenu(!showProjectMenu)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              {selectedProject ? (
-                <>
-                  <FolderOpen className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {selectedProject.name}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Folder className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500">Select Project</span>
-                </>
-              )}
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </button>
+      <div className="flex-1 overflow-y-auto p-6">
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <>
+            {/* New project inline form */}
+            {showNew && (
+              <form
+                onSubmit={createProject}
+                className="mb-6 flex gap-2 items-center p-4 rounded-xl border border-primary/40 bg-primary/5"
+              >
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Project name…"
+                  autoFocus
+                  className="flex-1 px-3 py-1.5 bg-[#1E1F22] text-white rounded-lg border border-gray-600 focus:outline-none focus:border-primary text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={creating || !newName.trim()}
+                  className="px-4 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {creating ? 'Creating…' : 'Create'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNew(false); setNewName(''); }}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
 
-            {/* Dropdown */}
-            {showProjectMenu && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                <div className="p-2">
-                  {projects.map((project) => (
+            {active.length === 0 && !showNew ? (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+                <LayoutGrid className="w-12 h-12 mb-3 text-gray-600" />
+                <p className="text-sm">No projects yet</p>
+                <button
+                  onClick={() => setShowNew(true)}
+                  className="mt-3 text-sm text-primary hover:underline"
+                >
+                  Create your first project
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {active.map(project => (
+                  <button
+                    key={project.id}
+                    onClick={() => router.push(`/project/${project.id}`)}
+                    className="text-left p-4 rounded-xl bg-[#2B2D31] hover:bg-[#313338] border border-transparent hover:border-gray-600 transition-all group"
+                  >
+                    <div className="flex items-start gap-3 mb-3">
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0 mt-1"
+                        style={{ backgroundColor: project.color || '#5865f2' }}
+                      />
+                      <h3 className="font-semibold text-white group-hover:text-primary transition-colors truncate flex-1">
+                        {project.name}
+                      </h3>
+                    </div>
+                    {project.description && (
+                      <p className="text-sm text-gray-400 mb-3 line-clamp-2">{project.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span>{project._count?.tasks ?? 0} tasks</span>
+                      <span>{project._count?.columns ?? 0} columns</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Archived */}
+            {archived.length > 0 && (
+              <div className="mt-10">
+                <div className="flex items-center gap-2 mb-3 text-xs text-gray-500 uppercase tracking-wide">
+                  <Archive className="w-3.5 h-3.5" />
+                  Archived ({archived.length})
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {archived.map(project => (
                     <button
                       key={project.id}
-                      onClick={() => {
-                        setSelectedProjectId(project.id);
-                        setShowProjectMenu(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
-                        project.id === selectedProjectId
-                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-                      }`}
+                      onClick={() => router.push(`/project/${project.id}`)}
+                      className="text-left p-4 rounded-xl bg-[#2B2D31]/50 border border-gray-700/50 opacity-60 hover:opacity-80 transition-opacity"
                     >
-                      <Folder className="w-4 h-4" />
-                      <span className="text-sm font-medium truncate">{project.name}</span>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-3 h-3 rounded-sm flex-shrink-0 mt-0.5"
+                          style={{ backgroundColor: project.color || '#5865f2' }}
+                        />
+                        <span className="text-sm text-gray-400 truncate">{project.name}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
-
-                <div className="border-t border-gray-200 dark:border-gray-700 p-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && createProject()}
-                      placeholder="New project name..."
-                      className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={createProject}
-                      disabled={creating || !newProjectName.trim()}
-                      className="px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Board */}
-      <div className="flex-1 overflow-hidden">
-        {selectedProjectId ? (
-          <KanbanBoard projectId={selectedProjectId} highlightedTaskId={highlightedTaskId} />
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center text-gray-500">
-            <Folder className="w-16 h-16 mb-4 text-gray-300" />
-            <p className="text-lg mb-2">No project selected</p>
-            <p className="text-sm">Select a project or create a new one to get started</p>
-          </div>
+          </>
         )}
       </div>
-
-      {/* Click outside to close menu */}
-      {showProjectMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setShowProjectMenu(false)}
-        />
-      )}
     </div>
   );
 }
