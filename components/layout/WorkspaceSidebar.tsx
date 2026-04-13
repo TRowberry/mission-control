@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Hash, 
-  Volume2, 
+import {
+  Hash,
+  Volume2,
   Megaphone,
-  ChevronDown, 
+  ChevronDown,
   Plus,
   LayoutGrid,
   MessageSquare,
@@ -26,6 +26,7 @@ import CreateChannelModal from '@/components/chat/CreateChannelModal';
 import ChannelSettingsModal from '@/components/chat/ChannelSettingsModal';
 import AgentSettingsModal from '@/components/agents/AgentSettingsModal';
 import { useSocket } from '@/components/providers/SocketProvider';
+import { useWorkspace } from '@/components/providers/WorkspaceContext';
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
@@ -96,6 +97,7 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
   const router = useRouter();
   const { isUserOnline } = useSocket();
   const { closeSidebar, isMobile } = useMobile();
+  const { activeWorkspace, activeWorkspaceId } = useWorkspace();
 
   const handleNav = () => {
     if (isMobile) closeSidebar();
@@ -185,13 +187,14 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
   }, [projectMenuId]);
 
   // Fetch channels, team members, DMs, and projects
+  // Re-fetch whenever the active workspace changes
   useEffect(() => {
     fetchChannels();
     fetchTeamMembers();
     fetchUnreadCounts();
     fetchDMs();
     fetchProjects();
-    
+
     // Refresh team members every 30 seconds for status updates
     const interval = setInterval(fetchTeamMembers, 30000);
     // Refresh unread counts every 10 seconds
@@ -203,11 +206,12 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
       clearInterval(unreadInterval);
       clearInterval(dmInterval);
     };
-  }, []);
+  }, [activeWorkspaceId]);
 
   const fetchChannels = async () => {
     try {
-      const res = await fetch('/api/channels');
+      const qs = activeWorkspaceId ? `?workspaceId=${activeWorkspaceId}` : '';
+      const res = await fetch(`/api/channels${qs}`);
       if (res.ok) {
         const data = await res.json();
         setChannels(data.channels || []);
@@ -222,7 +226,8 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
 
   const fetchTeamMembers = async () => {
     try {
-      const res = await fetch('/api/users?limit=20');
+      const qs = activeWorkspaceId ? `?workspaceId=${activeWorkspaceId}&limit=50` : '?limit=50';
+      const res = await fetch(`/api/users${qs}`);
       if (res.ok) {
         const users = await res.json();
         setTeamMembers(users);
@@ -258,7 +263,8 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/kanban/projects');
+      const qs = activeWorkspaceId ? `?workspaceId=${activeWorkspaceId}` : '';
+      const res = await fetch(`/api/kanban/projects${qs}`);
       if (res.ok) {
         const data = await res.json();
         setProjects(data.filter((p: Project) => !p.archived));
@@ -329,7 +335,7 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
     }
   };
 
-  const handleCreateChannel = (channel: Channel) => {
+  const handleCreateChannel = (channel: Channel & { workspaceId?: string }) => {
     setChannels(prev => [...prev, channel]);
     router.push(`/chat/${channel.id}`);
   };
@@ -376,10 +382,13 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
           </div>
         )}
         {/* Workspace header */}
-        <div className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm cursor-pointer hover:bg-white/5">
-          <h2 className="font-semibold truncate">Mission Control</h2>
+        <Link
+          href="/settings/workspace"
+          className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm cursor-pointer hover:bg-white/5"
+        >
+          <h2 className="font-semibold truncate">{activeWorkspace?.name ?? 'Mission Control'}</h2>
           <ChevronDown className="w-4 h-4 text-gray-400" />
-        </div>
+        </Link>
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4">

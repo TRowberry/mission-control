@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh grayskull:*)",
+      "Bash(find . -path ./node_modules -prune -o -name \"*.tsx\" -exec grep -l \"44px\\\\|min-h-\\\\[44\\\\|touch-action\\\\|pointer-events\" {} \\\\;)",
+      "Bash(grep -r \"px-2\\\\.5\\\\|py-2\\\\.5\\\\|p-3\" components/kanban/*.tsx)",
+      "Bash(ssh ricosgpus:*)",
+      "Read(//c/Users/Rico/.openclaw/workspace/mission-control/app/api/auth/login/**)",
+      "Read(//c/Users/Rico/.openclaw/workspace/mission-control/app/api/auth/\" 2>/dev/**)",
+      "Bash(grep -oE '\\(ws|wss\\)://[^\", ]{5,100}')",
+      "Bash(grep -oE 'type:.req.,id:[^;]{0,200}')",
+      "Bash(docker exec:*)",
+      "Bash(grep -oE 'stayHttp.{0,300}')",
+      "Bash(grep -oE 'allowInsecureAuth.{0,200}')",
+      "Bash(grep -oE 'allowInsecureAuth.{0,400}')"
+    ]
+  }
+}

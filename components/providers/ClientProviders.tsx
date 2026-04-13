@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { SocketProvider } from './SocketProvider';
+import { WorkspaceProvider } from './WorkspaceContext';
 
 interface ClientProvidersProps {
   children: ReactNode;
@@ -14,12 +15,14 @@ interface ClientProvidersProps {
 
 export default function ClientProviders({ children, user }: ClientProvidersProps) {
   return (
-    <SocketProvider 
-      userId={user.id} 
-      username={user.username} 
-      displayName={user.displayName}
-    >
-      {children}
-    </SocketProvider>
+    <WorkspaceProvider>
+      <SocketProvider
+        userId={user.id}
+        username={user.username}
+        displayName={user.displayName}
+      >
+        {children}
+      </SocketProvider>
+    </WorkspaceProvider>
   );
 }
