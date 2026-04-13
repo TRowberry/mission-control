@@ -410,11 +410,11 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
               onClick={handleNav}
               className={cn(
                 'channel-item',
-                pathname.startsWith('/kanban') && 'active'
+                (pathname.startsWith('/kanban') || pathname.startsWith('/project')) && 'active'
               )}
             >
               <LayoutGrid className="w-5 h-5" />
-              <span>Kanban</span>
+              <span>Projects</span>
             </Link>
             <Link
               href="/notifications"
