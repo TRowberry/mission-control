@@ -88,6 +88,7 @@ interface AgentModalProps {
   agent: Agent | null;
   onClose: () => void;
   onSave: () => void;
+  workspaceId?: string;
 }
 
 type TabId = 'basic' | 'llm' | 'behavior' | 'capabilities' | 'limits' | 'resources' | 'projects' | 'flows' | 'history' | 'memory' | 'browse';
@@ -145,7 +146,7 @@ const tabs: { id: TabId; label: string; icon: typeof Bot }[] = [
   { id: 'projects', label: 'Projects', icon: FolderOpen },
 ];
 
-export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) {
+export default function AgentModal({ agent, onClose, onSave, workspaceId }: AgentModalProps) {
   const isEditing = !!agent;
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [saving, setSaving] = useState(false);
@@ -295,7 +296,7 @@ export default function AgentModal({ agent, onClose, onSave }: AgentModalProps) 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(!isEditing && workspaceId ? { ...payload, workspaceId } : payload),
       });
 
       if (!res.ok) {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import AgentModal from './AgentModal';
+import { useWorkspace } from '@/components/providers/WorkspaceContext';
 
 interface AgentConfig {
   id: string;
@@ -100,6 +101,7 @@ const statusConfig: Record<AgentStatus, { label: string; color: string; icon: ty
 };
 
 export default function AgentList() {
+  const { activeWorkspaceId } = useWorkspace();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,13 +114,16 @@ export default function AgentList() {
 
   useEffect(() => {
     fetchAgents();
-  }, []);
+  }, [activeWorkspaceId]);
 
   async function fetchAgents() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/agents');
+      const url = activeWorkspaceId
+        ? `/api/agents?workspaceId=${activeWorkspaceId}`
+        : '/api/agents';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data = await res.json();
       setAgents(data.agents || []);
@@ -155,6 +160,7 @@ export default function AgentList() {
           username: `${agent.username}-copy-${Date.now()}`,
           displayName: `${agent.displayName} (Copy)`,
           avatar: agent.avatar,
+          workspaceId: activeWorkspaceId,
         }),
       });
       if (!res.ok) throw new Error('Failed to duplicate agent');
@@ -518,6 +524,7 @@ export default function AgentList() {
       {showModal && (
         <AgentModal
           agent={editingAgent}
+          workspaceId={activeWorkspaceId ?? undefined}
           onClose={() => { setShowModal(false); setEditingAgent(null); }}
           onSave={() => { setShowModal(false); setEditingAgent(null); fetchAgents(); }}
         />

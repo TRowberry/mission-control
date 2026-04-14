@@ -6,14 +6,22 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 /**
- * GET /api/agents
- * 
- * List all agents in the system with their configurations.
- * Includes AgentConfig data if available.
+ * GET /api/agents?workspaceId=...
+ *
+ * List agents. When workspaceId is provided, returns only agents that are
+ * members of that workspace. Otherwise returns all agents (for admin use).
  */
 export const GET = withAuth(async (req: NextRequest, user: AuthUser) => {
+  const { searchParams } = new URL(req.url);
+  const workspaceId = searchParams.get('workspaceId') || undefined;
+
   const agents = await prisma.user.findMany({
-    where: { isAgent: true },
+    where: {
+      isAgent: true,
+      ...(workspaceId
+        ? { workspaces: { some: { workspaceId } } }
+        : {}),
+    },
     select: {
       id: true,
       username: true,
@@ -80,16 +88,22 @@ export const GET = withAuth(async (req: NextRequest, user: AuthUser) => {
 
 /**
  * POST /api/agents
- * 
+ *
  * Create a new agent user with optional configuration.
- * Only workspace admins/owners can create agents.
+ * Pass workspaceId to scope the agent to that workspace — the agent is
+ * automatically enrolled as a member. Only workspace admins/owners can
+ * create agents.
  */
 export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
-  // Check if user is admin/owner in at least one workspace
+  const body = await req.json();
+  const workspaceId: string | undefined = body.workspaceId;
+
+  // Require admin/owner in the target workspace (or any workspace if none given)
   const isAdmin = await prisma.workspaceMember.findFirst({
     where: {
       userId: user.id,
       role: { in: ['owner', 'admin'] },
+      ...(workspaceId ? { workspaceId } : {}),
     },
   });
 
@@ -97,7 +111,6 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
     return forbidden('Admin access required to create agents');
   }
 
-  const body = await req.json();
   const {
     username,
     displayName,
@@ -194,6 +207,17 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
       agentConfig: true,
     },
   });
+
+  // Enroll the new agent into the target workspace
+  if (workspaceId) {
+    await prisma.workspaceMember.create({
+      data: {
+        userId: agent.id,
+        workspaceId,
+        role: 'member',
+      },
+    });
+  }
 
   return created({
     agent: {
