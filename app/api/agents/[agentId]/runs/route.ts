@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuthParams } from '@/lib/modules/api/middleware';
+import { withAnyAuthParams } from '@/lib/modules/api/middleware';
 import { ok, notFound } from '@/lib/modules/api/response';
 
 const PAGE_SIZE = 25;
@@ -9,7 +9,7 @@ const PAGE_SIZE = 25;
  * GET /api/agents/[agentId]/runs
  * List agent run history with stats and cursor pagination
  */
-export const GET = withAuthParams(async (req: NextRequest, _user, params) => {
+export const GET = withAnyAuthParams(async (req: NextRequest, _actor, params) => {
   const { agentId } = await params;
   const { searchParams } = new URL(req.url);
   const cursor = searchParams.get('cursor') || undefined;
