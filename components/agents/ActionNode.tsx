@@ -47,7 +47,13 @@ function ActionNodeComponent({ data, selected }: NodeProps<any>) {
       {/* Node Body - show config preview */}
       <div className="px-3 py-2 text-xs text-text-secondary">
         {nodeData.actionType === 'trigger' && (
-          <span>{nodeData.config.triggerType || 'manual'}</span>
+          <span>
+            {nodeData.config.cron
+              ? `⏱ ${nodeData.config.cron}`
+              : nodeData.config.triggerType === 'scheduled'
+              ? 'scheduled'
+              : nodeData.config.label || nodeData.config.triggerType || 'manual'}
+          </span>
         )}
         {nodeData.actionType === 'fetch' && nodeData.config.url && (
           <span className="truncate block max-w-[140px]">{nodeData.config.url}</span>
