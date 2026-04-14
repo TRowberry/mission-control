@@ -7,6 +7,7 @@
 
 import prisma from '@/lib/db';
 import { runAgent } from './runner';
+import { executeFlow } from '@/lib/flows/executor';
 
 // Simple cron parser - supports standard 5-field cron expressions
 // minute hour day-of-month month day-of-week
@@ -82,6 +83,95 @@ function shouldRunNow(cronExpr: string, now: Date): boolean {
 // Track last run times to prevent duplicate runs within the same minute
 const lastRunTimes = new Map<string, number>();
 
+async function checkScheduledFlows() {
+  const now = new Date();
+  const currentMinute = Math.floor(now.getTime() / 60000);
+
+  try {
+    const scheduledFlows = await prisma.agentFlow.findMany({
+      where: {
+        triggerType: 'scheduled',
+        isActive: true,
+        triggerConfig: { not: null },
+      },
+      include: {
+        agent: { select: { id: true, username: true, apiKey: true } },
+      },
+    });
+
+    for (const flow of scheduledFlows) {
+      const runKey = `flow:${flow.id}`;
+      const lastRun = lastRunTimes.get(runKey);
+      if (lastRun === currentMinute) continue;
+
+      let cronExpr: string | null = null;
+      try {
+        const cfg = JSON.parse(flow.triggerConfig!);
+        cronExpr = cfg.cron || cfg.cronSchedule || null;
+      } catch {
+        continue;
+      }
+      if (!cronExpr || !shouldRunNow(cronExpr, now)) continue;
+
+      lastRunTimes.set(runKey, currentMinute);
+      console.log(`[Scheduler] Triggering scheduled flow: ${flow.name} (${flow.id})`);
+
+      (async () => {
+        const startTime = Date.now();
+        const run = await prisma.agentFlowRun.create({
+          data: {
+            flowId: flow.id,
+            triggeredBy: 'scheduler',
+            status: 'running',
+            startedAt: new Date(),
+          },
+        });
+
+        try {
+          const result = await executeFlow(flow, {}, run.id);
+          const durationMs = Date.now() - startTime;
+          await prisma.agentFlowRun.update({
+            where: { id: run.id },
+            data: {
+              status: 'success',
+              output: JSON.stringify(result.output),
+              executionLog: JSON.stringify(result.log),
+              tokensUsed: result.tokensUsed || 0,
+              cost: result.cost || 0,
+              durationMs,
+              completedAt: new Date(),
+            },
+          });
+          await prisma.agentFlow.update({
+            where: { id: flow.id },
+            data: { runCount: { increment: 1 }, lastRunAt: new Date(), lastRunStatus: 'success' },
+          });
+          console.log(`[Scheduler] Flow ${flow.name} completed in ${durationMs}ms`);
+        } catch (err: any) {
+          const durationMs = Date.now() - startTime;
+          await prisma.agentFlowRun.update({
+            where: { id: run.id },
+            data: {
+              status: 'failed',
+              errorMessage: err.message,
+              errorNodeId: err.nodeId || null,
+              durationMs,
+              completedAt: new Date(),
+            },
+          });
+          await prisma.agentFlow.update({
+            where: { id: flow.id },
+            data: { runCount: { increment: 1 }, lastRunAt: new Date(), lastRunStatus: 'failed' },
+          });
+          console.error(`[Scheduler] Flow ${flow.name} failed:`, err.message);
+        }
+      })().catch(err => console.error(`[Scheduler] Flow ${flow.name} run error:`, err));
+    }
+  } catch (error) {
+    console.error('[Scheduler] Error checking scheduled flows:', error);
+  }
+}
+
 async function checkScheduledAgents() {
   const now = new Date();
   const currentMinute = Math.floor(now.getTime() / 60000); // Current minute timestamp
@@ -149,12 +239,16 @@ export function startScheduler() {
   }
 
   console.log('[Scheduler] Starting agent scheduler (checking every minute)');
-  
+
   // Check immediately on start
   checkScheduledAgents();
-  
+  checkScheduledFlows();
+
   // Then check every minute
-  schedulerInterval = setInterval(checkScheduledAgents, 60000);
+  schedulerInterval = setInterval(() => {
+    checkScheduledAgents();
+    checkScheduledFlows();
+  }, 60000);
 }
 
 export function stopScheduler() {
