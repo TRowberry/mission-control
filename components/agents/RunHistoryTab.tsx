@@ -74,23 +74,59 @@ interface ActionStats {
   total: number;
 }
 
+interface FlowRun {
+  id: string;
+  flowId: string;
+  flowName: string;
+  triggeredBy: string;
+  triggerUser: { id: string; displayName: string; avatar: string | null } | null;
+  status: string;
+  tokensUsed: number;
+  cost: number;
+  durationMs: number | null;
+  errorMessage: string | null;
+  errorNodeId: string | null;
+  output: string | null;
+  executionLog: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+interface FlowRunStats {
+  total: number;
+  totalTokens: number;
+  totalCost: number;
+  successRate: number;
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+}
+
 interface RunHistoryTabProps {
   agentId: string;
 }
 
-type ViewMode = 'runs' | 'actions';
+type ViewMode = 'flow-runs' | 'runs' | 'actions';
 
 export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('runs');
-  
-  // Runs state
+  const [viewMode, setViewMode] = useState<ViewMode>('flow-runs');
+
+  // Flow runs state (primary view)
+  const [flowRuns, setFlowRuns] = useState<FlowRun[]>([]);
+  const [flowRunStats, setFlowRunStats] = useState<FlowRunStats | null>(null);
+  const [loadingFlowRuns, setLoadingFlowRuns] = useState(true);
+  const [expandedFlowRun, setExpandedFlowRun] = useState<string | null>(null);
+  const [flowRunsHasMore, setFlowRunsHasMore] = useState(false);
+  const [flowRunsNextCursor, setFlowRunsNextCursor] = useState<string | null>(null);
+
+  // Agent runs state
   const [runs, setRuns] = useState<Run[]>([]);
   const [runStats, setRunStats] = useState<Stats | null>(null);
-  const [loadingRuns, setLoadingRuns] = useState(true);
+  const [loadingRuns, setLoadingRuns] = useState(false);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [runsHasMore, setRunsHasMore] = useState(false);
   const [runsNextCursor, setRunsNextCursor] = useState<string | null>(null);
-  
+
   // Actions state
   const [actions, setActions] = useState<Action[]>([]);
   const [actionStats, setActionStats] = useState<ActionStats | null>(null);
@@ -98,28 +134,52 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
   const [actionsHasMore, setActionsHasMore] = useState(false);
   const [actionsNextCursor, setActionsNextCursor] = useState<string | null>(null);
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
-  
+
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  async function fetchFlowRuns(cursor?: string) {
+    try {
+      const url = cursor
+        ? `/api/agents/${agentId}/flow-runs?cursor=${cursor}`
+        : `/api/agents/${agentId}/flow-runs`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch flow runs');
+      const data = await res.json();
+      if (cursor) {
+        setFlowRuns(prev => [...prev, ...data.runs]);
+      } else {
+        setFlowRuns(data.runs);
+        setFlowRunStats(data.stats);
+      }
+      setFlowRunsHasMore(data.pagination.hasMore);
+      setFlowRunsNextCursor(data.pagination.nextCursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load flow runs');
+    } finally {
+      setLoadingFlowRuns(false);
+      setLoadingMore(false);
+    }
+  }
 
   async function fetchRuns(cursor?: string) {
     try {
       const url = cursor
         ? `/api/agents/${agentId}/runs?cursor=${cursor}`
         : `/api/agents/${agentId}/runs`;
-      
+
       const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch runs');
-      
+
       const data = await res.json();
-      
+
       if (cursor) {
         setRuns(prev => [...prev, ...data.runs]);
       } else {
         setRuns(data.runs);
         setRunStats(data.stats);
       }
-      
+
       setRunsHasMore(data.pagination.hasMore);
       setRunsNextCursor(data.pagination.nextCursor);
     } catch (err) {
@@ -161,11 +221,15 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
 
   useEffect(() => {
     if (agentId) {
-      fetchRuns();
+      fetchFlowRuns();
     }
   }, [agentId]);
 
   useEffect(() => {
+    if (viewMode === 'runs' && runs.length === 0 && !loadingRuns) {
+      setLoadingRuns(true);
+      fetchRuns();
+    }
     if (viewMode === 'actions' && actions.length === 0 && !loadingActions) {
       fetchActions();
     }
@@ -241,6 +305,14 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
     return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
   }
 
+  if (loadingFlowRuns && viewMode === 'flow-runs') {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   if (loadingRuns && viewMode === 'runs') {
     return (
       <div className="flex items-center justify-center py-12">
@@ -266,46 +338,62 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
-      {runStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <PlayCircle className="w-3 h-3" />
-              Total Runs
+      {/* Stats Overview — shows stats for whichever view is active */}
+      {(viewMode === 'flow-runs' ? flowRunStats : runStats) && (() => {
+        const s = viewMode === 'flow-runs' ? flowRunStats! : runStats!;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                <PlayCircle className="w-3 h-3" />
+                Total Runs
+              </div>
+              <div className="text-xl font-semibold text-white">{s.total}</div>
             </div>
-            <div className="text-xl font-semibold text-white">{runStats.total}</div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                <CheckCircle className="w-3 h-3" />
+                Success Rate
+              </div>
+              <div className="text-xl font-semibold text-white">{s.successRate}%</div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                <Zap className="w-3 h-3" />
+                Total Tokens
+              </div>
+              <div className="text-xl font-semibold text-white">
+                {s.totalTokens.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                <DollarSign className="w-3 h-3" />
+                Total Cost
+              </div>
+              <div className="text-xl font-semibold text-white">
+                ${s.totalCost.toFixed(4)}
+              </div>
+            </div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <CheckCircle className="w-3 h-3" />
-              Success Rate
-            </div>
-            <div className="text-xl font-semibold text-white">{runStats.successRate}%</div>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <Zap className="w-3 h-3" />
-              Total Tokens
-            </div>
-            <div className="text-xl font-semibold text-white">
-              {runStats.totalTokens.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <DollarSign className="w-3 h-3" />
-              Total Cost
-            </div>
-            <div className="text-xl font-semibold text-white">
-              ${runStats.totalCost.toFixed(4)}
-            </div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* View Mode Toggle */}
       <div className="flex gap-2 border-b border-gray-700">
+        <button
+          onClick={() => setViewMode('flow-runs')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium transition-colors',
+            viewMode === 'flow-runs'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          )}
+        >
+          <Zap className="w-4 h-4 inline mr-2" />
+          Flow Runs
+          {flowRunStats && <span className="ml-1 text-xs text-gray-500">({flowRunStats.total})</span>}
+        </button>
         <button
           onClick={() => setViewMode('runs')}
           className={cn(
@@ -316,7 +404,7 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
           )}
         >
           <History className="w-4 h-4 inline mr-2" />
-          Runs
+          Agent Runs
         </button>
         <button
           onClick={() => setViewMode('actions')}
@@ -333,7 +421,88 @@ export default function RunHistoryTab({ agentId }: RunHistoryTabProps) {
         </button>
       </div>
 
-      {/* Runs View */}
+      {/* Flow Runs View */}
+      {viewMode === 'flow-runs' && (
+        <div>
+          {flowRuns.length === 0 ? (
+            <div className="text-center py-8 bg-gray-800/30 rounded-lg">
+              <Zap className="w-10 h-10 text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-400">No flow runs yet</p>
+              <p className="text-xs text-gray-500 mt-1">Scheduled flows will appear here automatically</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {flowRuns.map(run => (
+                <div key={run.id} className="bg-gray-800/50 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedFlowRun(expandedFlowRun === run.id ? null : run.id)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-gray-800/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(run.status)}
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('text-xs px-2 py-0.5 rounded border', getStatusColor(run.status))}>
+                            {run.status}
+                          </span>
+                          <span className="text-sm text-white font-medium">{run.flowName}</span>
+                          <span className="text-xs text-gray-500">{run.triggeredBy}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right text-xs text-gray-500">
+                        {formatDuration(run.durationMs)} • {run.tokensUsed} tokens
+                      </div>
+                      {expandedFlowRun === run.id ? (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </button>
+                  {expandedFlowRun === run.id && (
+                    <div className="border-t border-gray-700 p-3 space-y-3">
+                      {run.errorMessage && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded p-2">
+                          <div className="text-xs text-red-400 font-medium">
+                            Error{run.errorNodeId ? ` at node ${run.errorNodeId}` : ''}
+                          </div>
+                          <div className="text-xs text-red-300 mt-1">{run.errorMessage}</div>
+                        </div>
+                      )}
+                      {run.output && (
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Output</div>
+                          <pre className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700 overflow-x-auto max-h-48 text-gray-300">
+                            {typeof run.output === 'string'
+                              ? (() => { try { return JSON.stringify(JSON.parse(run.output), null, 2); } catch { return run.output; } })()
+                              : JSON.stringify(run.output, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {flowRunsHasMore && (
+                <button
+                  onClick={() => { setLoadingMore(true); fetchFlowRuns(flowRunsNextCursor || undefined); }}
+                  disabled={loadingMore}
+                  className="w-full py-2 text-sm text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                >
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Load more'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Agent Runs View */}
       {viewMode === 'runs' && (
         <div>
           {runs.length === 0 ? (

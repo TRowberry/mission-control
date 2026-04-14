@@ -52,7 +52,8 @@ export function FlowEditor({ initialDefinition, onSave, readOnly = false }: Flow
       data: {
         actionType: n.type,
         label: ACTION_TYPES.find(a => a.type === n.type)?.label || n.type,
-        config: n.config || {},
+        // Support both n.config (editor convention) and n.data (executor convention)
+        config: n.config ?? n.data ?? {},
         color: ACTION_TYPES.find(a => a.type === n.type)?.color || '#6b7280',
         icon: ACTION_TYPES.find(a => a.type === n.type)?.icon || '📦',
       },
