@@ -383,7 +383,7 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
         )}
         {/* Workspace header */}
         <Link
-          href="/settings/workspace"
+          href="/settings"
           className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm cursor-pointer hover:bg-white/5"
         >
           <h2 className="font-semibold truncate">{activeWorkspace?.name ?? 'Mission Control'}</h2>
