@@ -172,9 +172,9 @@ export default function Sidebar({ user }: SidebarProps) {
 
         {/* Settings */}
         <Link
-          href="/settings/workspace"
+          href="/settings"
           className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:rounded-xl bg-chat-bg hover:bg-secondary"
-          title="Workspace Settings"
+          title="Settings"
         >
           <Settings className="w-5 h-5" />
         </Link>

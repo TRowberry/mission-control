@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings, Users, Link2, Trash2, Copy, Check, Crown, Shield, UserIcon, UserMinus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/components/providers/WorkspaceContext';
@@ -46,9 +46,13 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function WorkspaceSettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeWorkspace, activeWorkspaceId, refreshWorkspaces } = useWorkspace();
 
-  const [tab, setTab] = useState<'general' | 'members' | 'invites'>('general');
+  const initialTab = (['general', 'members', 'invites'].includes(searchParams.get('tab') ?? '')
+    ? searchParams.get('tab')
+    : 'general') as 'general' | 'members' | 'invites';
+  const [tab, setTab] = useState<'general' | 'members' | 'invites'>(initialTab);
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
