@@ -282,14 +282,27 @@ function ConfigPanel({
   );
 }
 
+function describeCron(expr: string): string {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return 'Invalid cron expression';
+  const [min, hour, dom, month, dow] = parts;
+  if (expr === '* * * * *') return 'Every minute';
+  if (min.startsWith('*/')) return `Every ${min.slice(2)} minutes`;
+  if (hour === '*' && min !== '*') return `At minute ${min} of every hour`;
+  if (dom === '*' && month === '*' && dow === '*') {
+    return `Daily at ${hour.padStart(2,'0')}:${min.padStart(2,'0')} UTC`;
+  }
+  return expr;
+}
+
 // Node configuration form based on action type
-function NodeConfigForm({ 
-  actionType, 
-  config, 
-  onChange 
-}: { 
-  actionType: string; 
-  config: any; 
+function NodeConfigForm({
+  actionType,
+  config,
+  onChange
+}: {
+  actionType: string;
+  config: any;
   onChange: (config: any) => void;
 }) {
   const updateField = (field: string, value: any) => {
@@ -337,13 +350,14 @@ function NodeConfigForm({
   };
 
   switch (actionType) {
-    case 'trigger':
+    case 'trigger': {
+      const triggerTypeVal = config.triggerType || (config.cron ? 'scheduled' : 'manual');
       return (
         <div className="space-y-3">
           <label className="block">
             <span className="text-sm text-zinc-400">Trigger Type</span>
             <select
-              value={config.triggerType || 'manual'}
+              value={triggerTypeVal}
               onChange={handleInputChange('triggerType')}
               onFocus={handleInputFocus('triggerType')}
               onKeyDown={handleInputKeyDown('triggerType')}
@@ -351,13 +365,34 @@ function NodeConfigForm({
               className="nodrag nopan"
             >
               <option value="manual">Manual</option>
-              <option value="schedule">Schedule</option>
+              <option value="scheduled">Schedule</option>
               <option value="webhook">Webhook</option>
               <option value="event">Event</option>
             </select>
           </label>
+          {(triggerTypeVal === 'scheduled' || triggerTypeVal === 'schedule') && (
+            <label className="block">
+              <span className="text-sm text-zinc-400">Cron Expression</span>
+              <input
+                type="text"
+                value={config.cron || ''}
+                onChange={handleInputChange('cron')}
+                onFocus={handleInputFocus('cron')}
+                onKeyDown={handleInputKeyDown('cron')}
+                placeholder="*/15 * * * *"
+                style={inputStyle}
+                className="nodrag nopan font-mono"
+              />
+              <span className="text-xs text-zinc-500 mt-1 block">
+                {config.cron
+                  ? describeCron(config.cron)
+                  : 'min hour day month weekday — e.g. */15 * * * * = every 15 min'}
+              </span>
+            </label>
+          )}
         </div>
       );
+    }
 
     case 'fetch':
       return (
