@@ -18,7 +18,8 @@ import {
   Folder,
   MoreVertical,
   Archive,
-  Trash2
+  Trash2,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMobile } from './MobileContext';
@@ -437,6 +438,17 @@ export default function WorkspaceSidebar({ user, mobile }: WorkspaceSidebarProps
             >
               <Folder className="w-5 h-5" />
               <span>Pages</span>
+            </Link>
+            <Link
+              href="/research"
+              onClick={handleNav}
+              className={cn(
+                'channel-item',
+                pathname.startsWith('/research') && 'active'
+              )}
+            >
+              <FlaskConical className="w-5 h-5" />
+              <span>Research</span>
             </Link>
           </div>
 

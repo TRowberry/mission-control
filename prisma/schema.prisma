@@ -79,6 +79,9 @@ model User {
   // Agent runs
   agentRuns       AgentRun[] @relation("AgentRuns")
   triggeredRuns   AgentRun[] @relation("RunTriggers")
+
+  // Research sessions created by this user
+  researchSessions ResearchSession[] @relation("ResearchSessions")
   
   // Agent extended memory
   agentMemories      AgentMemory[]      @relation("AgentMemories")
@@ -128,6 +131,7 @@ model Workspace {
   invites  Invite[]
   pages        Page[]
   llmProviders LLMProvider[]
+  researchSessions ResearchSession[]
 
   @@index([slug])
 }
@@ -1175,4 +1179,64 @@ model ActionType {
   isEnabled        Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+// ============================================
+// RESEARCH KNOWLEDGE BASE
+// ============================================
+
+model ResearchSession {
+  id          String    @id @default(cuid())
+  jobId       String    // ID from the research agent service
+  workspaceId String
+  query       String
+  depth       String    @default("medium")
+  status      String    @default("pending") // pending | running | complete | failed
+  confidence  Float?
+  summary     String?   @db.Text
+  consensus   String?   @db.Text  // JSON array
+  debates     String?   @db.Text  // JSON array
+  gaps        String?   @db.Text  // JSON object
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdById String
+
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("ResearchSessions", fields: [createdById], references: [id])
+  sources     ResearchSource[]
+  findings    ResearchFinding[]
+
+  @@index([workspaceId])
+  @@index([createdById])
+  @@index([status])
+}
+
+model ResearchSource {
+  id            String  @id @default(cuid())
+  sessionId     String
+  url           String
+  title         String
+  credibility   Float?
+  blocked       Boolean @default(false)
+  findingsCount Int     @default(0)
+
+  session     ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model ResearchFinding {
+  id             String  @id @default(cuid())
+  sessionId      String
+  workspaceId    String
+  claim          String  @db.Text
+  confidence     String  // high | medium | low
+  groundingScore Float?
+  sourceUrl      String
+  pinned         Boolean @default(false)
+
+  session        ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, pinned])
+  @@index([sessionId])
 }
