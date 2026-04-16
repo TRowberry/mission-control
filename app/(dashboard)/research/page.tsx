@@ -121,7 +121,7 @@ export default function ResearchPage() {
   // ── Fetch sessions ──────────────────────────────────────────────────────────
 
   const fetchSessions = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId) { setLoading(false); return; }
     try {
       const res = await fetch(`/api/research?workspaceId=${workspaceId}`);
       if (res.ok) {
