@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useWorkspace } from '@/components/providers/WorkspaceContext';
 import {
   FlaskConical,
   Plus,
