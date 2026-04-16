@@ -1,0 +1,32 @@
+{
+  "name": "deep-research-agent",
+  "version": "1.0.0",
+  "description": "Autonomous research agent — multi-perspective search, parallel extraction, synthesis with confidence levels",
+  "main": "src/index.js",
+  "type": "module",
+  "bin": {
+    "research": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "dev": "node --watch src/cli.js",
+    "test": "node test.js",
+    "serve": "node src/server.js"
+  },
+  "keywords": [
+    "research",
+    "ai",
+    "agent",
+    "llm",
+    "synthesis"
+  ],
+  "author": "Rico & Tim",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
+    "@mozilla/readability": "^0.5.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "jsdom": "^24.0.0"
+  }
+}
