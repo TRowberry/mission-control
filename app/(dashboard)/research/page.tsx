@@ -220,7 +220,7 @@ export default function ResearchPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white p-6">
+    <div className="h-full overflow-y-auto bg-zinc-900 text-white p-4 md:p-6 pb-10">
       <div className="max-w-5xl mx-auto">
 
         {/* Header */}

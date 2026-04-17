@@ -219,7 +219,7 @@ export default function ResearchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
+      <div className="h-full bg-zinc-900 text-white flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-zinc-500" />
       </div>
     );
@@ -227,7 +227,7 @@ export default function ResearchDetailPage() {
 
   if (error || !session) {
     return (
-      <div className="min-h-screen bg-zinc-900 text-white p-6">
+      <div className="h-full overflow-y-auto bg-zinc-900 text-white p-4 md:p-6">
         <div className="max-w-4xl mx-auto">
           <Link href="/research" className="inline-flex items-center gap-2 text-zinc-400 hover:text-zinc-200 mb-6 text-sm">
             <ArrowLeft size={16} /> Back to Research
@@ -241,8 +241,8 @@ export default function ResearchDetailPage() {
   const isActive = session.status === 'pending' || session.status === 'running';
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="h-full overflow-y-auto bg-zinc-900 text-white">
+      <div className="max-w-4xl mx-auto space-y-4 p-4 md:p-6 pb-10">
 
         {/* Back + Header */}
         <div>
@@ -250,13 +250,13 @@ export default function ResearchDetailPage() {
             <ArrowLeft size={16} /> Back to Research
           </Link>
 
-          <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5">
-            <div className="flex items-start justify-between gap-4">
+          <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-semibold text-zinc-100 leading-snug">
+                <h1 className="text-lg md:text-xl font-semibold text-zinc-100 leading-snug">
                   {session.query}
                 </h1>
-                <div className="flex items-center gap-3 mt-2 text-xs text-zinc-500">
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-zinc-500">
                   <span>{formatDate(session.startedAt)}</span>
                   <span>·</span>
                   <span className="capitalize">{session.depth} depth</span>
@@ -395,29 +395,29 @@ export default function ResearchDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-700 text-xs text-zinc-500 uppercase tracking-wider">
-                    <th className="text-left px-5 py-2.5 font-medium">Title / URL</th>
-                    <th className="text-center px-3 py-2.5 font-medium">Credibility</th>
-                    <th className="text-center px-3 py-2.5 font-medium">Findings</th>
+                    <th className="text-left px-3 md:px-5 py-2.5 font-medium">Title / URL</th>
+                    <th className="text-center px-3 py-2.5 font-medium hidden sm:table-cell">Credibility</th>
+                    <th className="text-center px-3 py-2.5 font-medium hidden sm:table-cell">Findings</th>
                     <th className="text-center px-3 py-2.5 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-700/50">
                   {session.sources.map((source) => (
                     <tr key={source.id} className="hover:bg-zinc-700/30 transition-colors">
-                      <td className="px-5 py-3">
-                        <div className="font-medium text-zinc-200 truncate max-w-xs">
+                      <td className="px-3 md:px-5 py-3">
+                        <div className="font-medium text-zinc-200 truncate max-w-[160px] sm:max-w-xs md:max-w-sm">
                           {source.title}
                         </div>
                         <a
                           href={source.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:underline truncate max-w-xs block"
+                          className="text-xs text-blue-400 hover:underline truncate max-w-[160px] sm:max-w-xs md:max-w-sm block"
                         >
                           {source.url}
                         </a>
                       </td>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-3 text-center hidden sm:table-cell">
                         {source.credibility != null ? (
                           <span className={`text-xs font-medium ${
                             source.credibility >= 0.7 ? 'text-green-400' :
@@ -429,7 +429,7 @@ export default function ResearchDetailPage() {
                           <span className="text-zinc-600">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-center text-zinc-400">
+                      <td className="px-3 py-3 text-center text-zinc-400 hidden sm:table-cell">
                         {source.findingsCount}
                       </td>
                       <td className="px-3 py-3 text-center">
