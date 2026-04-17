@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuth, AuthUser } from '@/lib/modules/api/middleware';
+import { withAuthParams, AuthUser } from '@/lib/modules/api/middleware';
 import { ok, notFound, badRequest } from '@/lib/modules/api/response';
 
 const RESEARCH_AGENT_URL = process.env.RESEARCH_AGENT_URL || 'http://10.0.0.206:18800';
@@ -15,14 +15,15 @@ function normalizeConfidence(value: number | undefined | null): string {
 }
 
 // GET /api/research/[id]/poll — poll the agent and sync status to DB
-export const GET = withAuth(async (
+export const GET = withAuthParams(async (
   req: NextRequest,
   user: AuthUser,
-  { params }: { params: { id: string } }
+  rawParams: Promise<Record<string, string>>
 ) => {
   try {
+    const { id } = await rawParams;
     const session = await prisma.researchSession.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: { select: { sources: true, findings: true } },
       },

@@ -102,8 +102,8 @@ function formatDate(iso: string) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ResearchPage() {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id;
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const workspaceId = activeWorkspace?.id;
 
   const [tab, setTab] = useState<Tab>('sessions');
   const [sessions, setSessions] = useState<ResearchSession[]>([]);
@@ -121,7 +121,7 @@ export default function ResearchPage() {
   // ── Fetch sessions ──────────────────────────────────────────────────────────
 
   const fetchSessions = useCallback(async () => {
-    if (!workspaceId) { setLoading(false); return; }
+    if (!workspaceId) return;
     try {
       const res = await fetch(`/api/research?workspaceId=${workspaceId}`);
       if (res.ok) {
@@ -150,6 +150,11 @@ export default function ResearchPage() {
       setKbLoading(false);
     }
   }, [workspaceId]);
+
+  // Clear loading once workspace context finishes but no workspace is selected
+  useEffect(() => {
+    if (!workspaceLoading && !workspaceId) setLoading(false);
+  }, [workspaceLoading, workspaceId]);
 
   // Initial load
   useEffect(() => {

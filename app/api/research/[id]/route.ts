@@ -1,17 +1,18 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuth, AuthUser } from '@/lib/modules/api/middleware';
+import { withAuthParams, AuthUser } from '@/lib/modules/api/middleware';
 import { ok, notFound, badRequest } from '@/lib/modules/api/response';
 
 // GET /api/research/[id] — return session with all sources and findings
-export const GET = withAuth(async (
+export const GET = withAuthParams(async (
   req: NextRequest,
   user: AuthUser,
-  { params }: { params: { id: string } }
+  rawParams: Promise<Record<string, string>>
 ) => {
   try {
+    const { id } = await rawParams;
     const session = await prisma.researchSession.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         createdBy: { select: { id: true, displayName: true, avatar: true } },
         sources: { orderBy: { findingsCount: 'desc' } },
@@ -31,14 +32,15 @@ export const GET = withAuth(async (
 });
 
 // DELETE /api/research/[id] — delete session (cascade deletes sources + findings)
-export const DELETE = withAuth(async (
+export const DELETE = withAuthParams(async (
   req: NextRequest,
   user: AuthUser,
-  { params }: { params: { id: string } }
+  rawParams: Promise<Record<string, string>>
 ) => {
   try {
+    const { id } = await rawParams;
     const session = await prisma.researchSession.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, workspaceId: true, createdById: true },
     });
 
@@ -46,7 +48,7 @@ export const DELETE = withAuth(async (
       return notFound('Research session not found');
     }
 
-    await prisma.researchSession.delete({ where: { id: params.id } });
+    await prisma.researchSession.delete({ where: { id } });
 
     return ok({ success: true });
   } catch (err) {

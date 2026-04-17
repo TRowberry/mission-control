@@ -1,15 +1,16 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { withAuth, AuthUser } from '@/lib/modules/api/middleware';
+import { withAuthParams, AuthUser } from '@/lib/modules/api/middleware';
 import { ok, notFound, badRequest } from '@/lib/modules/api/response';
 
 // PATCH /api/research/[id]/findings/[findingId] — toggle pin on a finding
-export const PATCH = withAuth(async (
+export const PATCH = withAuthParams(async (
   req: NextRequest,
   user: AuthUser,
-  { params }: { params: { id: string; findingId: string } }
+  rawParams: Promise<Record<string, string>>
 ) => {
   try {
+    const { id, findingId } = await rawParams;
     const body = await req.json();
     const { pinned } = body;
 
@@ -19,7 +20,7 @@ export const PATCH = withAuth(async (
 
     // Verify the finding belongs to the session
     const finding = await prisma.researchFinding.findFirst({
-      where: { id: params.findingId, sessionId: params.id },
+      where: { id: findingId, sessionId: id },
     });
 
     if (!finding) {
@@ -27,7 +28,7 @@ export const PATCH = withAuth(async (
     }
 
     const updated = await prisma.researchFinding.update({
-      where: { id: params.findingId },
+      where: { id: findingId },
       data: { pinned },
     });
 
