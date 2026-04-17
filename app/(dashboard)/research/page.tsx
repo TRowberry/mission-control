@@ -14,6 +14,7 @@ import {
   Loader2,
   ChevronDown,
   BookOpen,
+  Trash2,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -175,6 +176,17 @@ export default function ResearchPage() {
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
   }, [sessions, fetchSessions]);
+
+  async function deleteSession(e: React.MouseEvent, sessionId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    try {
+      await fetch(`/api/research/${sessionId}`, { method: 'DELETE' });
+    } catch {
+      fetchSessions(); // restore on error
+    }
+  }
 
   // ── Submit new research ─────────────────────────────────────────────────────
 
@@ -375,13 +387,20 @@ export default function ResearchPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {session.confidence != null && session.status === 'complete' && (
-                          <span className="text-xs text-zinc-400">
+                          <span className="text-xs text-zinc-400 hidden sm:block">
                             {Math.round(session.confidence * 100)}% confidence
                           </span>
                         )}
                         <StatusBadge status={session.status} />
+                        <button
+                          onClick={(e) => deleteSession(e, session.id)}
+                          className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          title="Delete session"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </Link>
