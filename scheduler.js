@@ -457,9 +457,16 @@ async function runFetchAction(config, input) {
     ? resolveTemplate(typeof body === 'string' ? body : JSON.stringify(body), input)
     : undefined;
 
+  // Auto-inject relay auth for calls to the T2T relay service
+  const relayBase = process.env.T2T_RELAY_URL || 'http://10.0.0.108:18790';
+  const relayToken = process.env.T2T_RELAY_SECRET || '';
+  const relayHeaders = (resolvedUrl.startsWith(relayBase) && relayToken)
+    ? { 'X-Relay-Token': relayToken }
+    : {};
+
   const fetchOptions = {
     method,
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: { 'Content-Type': 'application/json', ...relayHeaders, ...headers },
   };
   if (method !== 'GET' && resolvedBody) fetchOptions.body = resolvedBody;
 
