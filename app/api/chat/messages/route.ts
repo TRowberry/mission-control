@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { withAuth, AuthUser } from '@/lib/modules/api/middleware';
 import { ok, created, badRequest, notFound, forbidden, serverError } from '@/lib/modules/api/response';
 import { handleApprovalReply } from '@/lib/modules/agents/approval-reply-handler';
+import { handleChatReply } from '@/lib/modules/agents/chat-reply';
 import { getOpenClawGatewayUrl } from '@/lib/llm-providers';
 
 // OpenClaw gateway config (for Rico)
@@ -153,7 +154,9 @@ async function wakeAgent(
 
   // Generic webhook for other agents
   if (!webhookUrl) {
-    console.log(`[Agent Wake] No webhook configured for ${agentUsername}, skipping wake`);
+    // No external webhook — handle reply in-process via the agent's LLM
+    console.log(`[Agent Wake] No webhook for ${agentUsername}, triggering in-process chat reply`);
+    handleChatReply(agentId, channelId, messageId);
     return;
   }
 
