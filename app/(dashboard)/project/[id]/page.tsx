@@ -27,12 +27,14 @@ import KanbanBoard from '@/components/kanban/KanbanBoard';
 import ActivityPanel from '@/components/kanban/ActivityPanel';
 import ProjectCalendar from '@/components/kanban/ProjectCalendar';
 import TaskPanel from '@/components/kanban/TaskPanel';
+import ProjectSettingsModal from '@/components/kanban/ProjectSettingsModal';
 
 interface Project {
   id: string;
   name: string;
   description: string | null;
   color: string;
+  visibility: string;
   createdAt: string;
   columns?: Column[];
 }
@@ -85,6 +87,7 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [showActivity, setShowActivity] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [calendarSelectedTask, setCalendarSelectedTask] = useState<any>(null);
   const [calendarSelectedColumnId, setCalendarSelectedColumnId] = useState<string>('');
   const [columns, setColumns] = useState<any[]>([]);
@@ -270,6 +273,7 @@ export default function ProjectPage() {
             <button
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 transition-colors"
               title="Settings"
+              onClick={() => setShowSettings(true)}
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -365,12 +369,23 @@ export default function ProjectPage() {
 
         {/* Activity Panel */}
         {showActivity && (
-          <ActivityPanel 
+          <ActivityPanel
             projectId={projectId}
             onClose={() => setShowActivity(false)}
           />
         )}
       </div>
+
+      {/* Project Settings Modal */}
+      {showSettings && project && (
+        <ProjectSettingsModal
+          projectId={project.id}
+          projectName={project.name}
+          projectVisibility={project.visibility || 'workspace'}
+          onClose={() => setShowSettings(false)}
+          onProjectUpdate={(updates) => setProject(prev => prev ? { ...prev, ...updates } : prev)}
+        />
+      )}
     </div>
   );
 }
@@ -680,6 +695,7 @@ function OverviewTab({ projectId, project }: { projectId: string; project: Proje
         </div>
 
       </div>
+
     </div>
   );
 }

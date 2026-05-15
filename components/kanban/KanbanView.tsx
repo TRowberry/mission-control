@@ -370,6 +370,11 @@ export default function KanbanView({ initialProjects, userId }: KanbanViewProps)
               p.id === selectedProject.id ? { ...p, visibility: v } as any : p
             ));
           }}
+          onProjectUpdate={(updates) => {
+            setProjects(prev => prev.map(p =>
+              p.id === selectedProject.id ? { ...p, ...updates } as any : p
+            ));
+          }}
         />
       )}
     </div>

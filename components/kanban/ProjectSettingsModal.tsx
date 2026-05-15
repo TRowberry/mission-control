@@ -30,6 +30,7 @@ interface ProjectSettingsModalProps {
   projectVisibility?: string;
   onClose: () => void;
   onVisibilityChange?: (visibility: string) => void;
+  onProjectUpdate?: (updates: { name?: string; description?: string; visibility?: string }) => void;
 }
 
 const roleIcons: Record<string, typeof Crown> = {
@@ -58,6 +59,7 @@ export default function ProjectSettingsModal({
   projectVisibility = 'workspace',
   onClose,
   onVisibilityChange,
+  onProjectUpdate,
 }: ProjectSettingsModalProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -68,14 +70,18 @@ export default function ProjectSettingsModal({
   const [error, setError] = useState<string | null>(null);
   const [visibility, setVisibility] = useState(projectVisibility);
   const [savingVisibility, setSavingVisibility] = useState(false);
+  const [name, setName] = useState(projectName);
+  const [description, setDescription] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
-  // Fetch members and available agents
+  // Fetch members, agents, and project details
   useEffect(() => {
     async function fetchData() {
       try {
-        const [membersRes, agentsRes] = await Promise.all([
+        const [membersRes, agentsRes, projectRes] = await Promise.all([
           fetch(`/api/kanban/projects/${projectId}/members`),
           fetch('/api/agents'),
+          fetch(`/api/kanban/projects?id=${projectId}`),
         ]);
 
         if (membersRes.ok) {
@@ -86,6 +92,11 @@ export default function ProjectSettingsModal({
         if (agentsRes.ok) {
           const data = await agentsRes.json();
           setAgents(data.agents);
+        }
+
+        if (projectRes.ok) {
+          const data = await projectRes.json();
+          setDescription(data.description || '');
         }
       } catch (err) {
         console.error('Failed to fetch data:', err);
@@ -107,10 +118,31 @@ export default function ProjectSettingsModal({
         body: JSON.stringify({ id: projectId, visibility: newVisibility }),
       });
       onVisibilityChange?.(newVisibility);
+      onProjectUpdate?.({ visibility: newVisibility });
     } catch (err) {
       console.error('Failed to update visibility:', err);
     } finally {
       setSavingVisibility(false);
+    }
+  }
+
+  async function handleSaveName() {
+    if (!name.trim()) return;
+    setSavingName(true);
+    try {
+      const res = await fetch('/api/kanban/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, name: name.trim(), description }),
+      });
+      if (res.ok) {
+        onProjectUpdate?.({ name: name.trim(), description });
+        onVisibilityChange?.(visibility); // keep parent in sync
+      }
+    } catch (err) {
+      console.error('Failed to update project:', err);
+    } finally {
+      setSavingName(false);
     }
   }
 
@@ -200,9 +232,44 @@ export default function ProjectSettingsModal({
 
         {/* Content */}
         <div className="p-4 max-h-[70vh] overflow-y-auto">
-          <h3 className="text-sm font-medium text-gray-400 mb-2">
-            {projectName}
-          </h3>
+          {/* Name & Description Section */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium">General</h4>
+              {savingName && <span className="text-xs text-gray-400">Saving…</span>}
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Project Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-[#2B2D31] border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-primary"
+                  placeholder="Project name…"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-[#2B2D31] border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-primary resize-none"
+                  placeholder="Short description…"
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveName}
+                  disabled={savingName || !name.trim()}
+                  className="px-3 py-1.5 bg-primary rounded hover:bg-primary-hover disabled:opacity-50 text-sm"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* Visibility Section */}
           <div className="mb-6">
