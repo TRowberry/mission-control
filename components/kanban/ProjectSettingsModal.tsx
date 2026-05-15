@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, UserPlus, Bot, User, Crown, Shield, Eye, Trash2 } from 'lucide-react';
+import { X, UserPlus, Bot, User, Crown, Shield, Eye, Trash2, Globe, Lock, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Member {
@@ -27,7 +27,9 @@ interface Agent {
 interface ProjectSettingsModalProps {
   projectId: string;
   projectName: string;
+  projectVisibility?: string;
   onClose: () => void;
+  onVisibilityChange?: (visibility: string) => void;
 }
 
 const roleIcons: Record<string, typeof Crown> = {
@@ -44,10 +46,18 @@ const roleColors: Record<string, string> = {
   readonly: 'text-gray-500',
 };
 
+const VISIBILITY_OPTIONS = [
+  { value: 'workspace', label: 'Workspace', description: 'All workspace members', icon: Globe },
+  { value: 'invite', label: 'Invite Only', description: 'Only invited members', icon: Users },
+  { value: 'private', label: 'Private', description: 'Only you', icon: Lock },
+];
+
 export default function ProjectSettingsModal({
   projectId,
   projectName,
+  projectVisibility = 'workspace',
   onClose,
+  onVisibilityChange,
 }: ProjectSettingsModalProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -56,6 +66,8 @@ export default function ProjectSettingsModal({
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [selectedRole, setSelectedRole] = useState('member');
   const [error, setError] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState(projectVisibility);
+  const [savingVisibility, setSavingVisibility] = useState(false);
 
   // Fetch members and available agents
   useEffect(() => {
@@ -84,6 +96,23 @@ export default function ProjectSettingsModal({
 
     fetchData();
   }, [projectId]);
+
+  async function handleVisibilityChange(newVisibility: string) {
+    setVisibility(newVisibility);
+    setSavingVisibility(true);
+    try {
+      await fetch('/api/kanban/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, visibility: newVisibility }),
+      });
+      onVisibilityChange?.(newVisibility);
+    } catch (err) {
+      console.error('Failed to update visibility:', err);
+    } finally {
+      setSavingVisibility(false);
+    }
+  }
 
   // Filter out agents that already have access
   const availableAgents = agents.filter(
@@ -174,6 +203,36 @@ export default function ProjectSettingsModal({
           <h3 className="text-sm font-medium text-gray-400 mb-2">
             {projectName}
           </h3>
+
+          {/* Visibility Section */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium">Visibility</h4>
+              {savingVisibility && <span className="text-xs text-gray-400">Saving…</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {VISIBILITY_OPTIONS.map(opt => {
+                const Icon = opt.icon;
+                const active = visibility === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleVisibilityChange(opt.value)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 p-3 rounded-lg border text-sm transition-colors',
+                      active
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-600 hover:border-gray-500 text-gray-400'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="text-xs text-center leading-tight opacity-70">{opt.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Members Section */}
           <div className="mb-6">

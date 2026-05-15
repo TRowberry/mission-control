@@ -1,5 +1,6 @@
 import { getCurrentUser } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { cookies } from 'next/headers';
 import { LayoutGrid, MessageSquare, Users, Bell, TrendingUp, Clock, Bot } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,8 +23,25 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+  // Resolve active workspace from cookie (set by WorkspaceContext client-side)
+  const cookieStore = await cookies();
+  let workspaceId = cookieStore.get('mc-workspace')?.value || null;
+
+  // Fall back to user's first workspace membership if cookie not set yet
+  if (!workspaceId && user) {
+    const membership = await prisma.workspaceMember.findFirst({
+      where: { userId: user.id },
+      select: { workspaceId: true },
+    });
+    workspaceId = membership?.workspaceId ?? null;
+  }
+
+  const workspaceFilter = workspaceId ? { project: { workspaceId } } : {};
+  const channelWorkspaceFilter = workspaceId ? { channel: { workspaceId } } : {};
+
   // Get all columns with task counts (columns represent status)
   const columns = await prisma.column.findMany({
+    where: workspaceFilter,
     include: {
       _count: { select: { tasks: true } },
       project: { select: { name: true } },
@@ -56,13 +74,19 @@ export default async function DashboardPage() {
   ]);
 
   // Project count
-  const projectCount = await prisma.project.count({ where: { archived: false } });
+  const projectCount = await prisma.project.count({
+    where: {
+      archived: false,
+      ...(workspaceId && { workspaceId }),
+    },
+  });
 
   // Message count (last 24h)
   const recentMessageCount = await prisma.message.count({
     where: {
       createdAt: { gte: oneDayAgo },
-      authorId: { not: user?.id || '' }
+      authorId: { not: user?.id || '' },
+      ...channelWorkspaceFilter,
     }
   });
 
@@ -75,7 +99,7 @@ export default async function DashboardPage() {
 
   // Recent activity (messages)
   const recentMessages = await prisma.message.findMany({
-    where: { createdAt: { gte: oneDayAgo } },
+    where: { createdAt: { gte: oneDayAgo }, ...channelWorkspaceFilter },
     orderBy: { createdAt: 'desc' },
     take: 8,
     include: {

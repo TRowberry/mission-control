@@ -43,6 +43,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveWorkspaceIdState(targetId);
       if (typeof window !== 'undefined') {
         localStorage.setItem('mc-active-workspace', targetId);
+        document.cookie = `mc-workspace=${targetId}; path=/; max-age=31536000; SameSite=Lax`;
       }
     } catch (err) {
       console.error('Failed to fetch workspaces:', err);
@@ -59,6 +60,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveWorkspaceIdState(id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('mc-active-workspace', id);
+      document.cookie = `mc-workspace=${id}; path=/; max-age=31536000; SameSite=Lax`;
     }
   };
 

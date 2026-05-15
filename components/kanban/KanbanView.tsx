@@ -363,7 +363,13 @@ export default function KanbanView({ initialProjects, userId }: KanbanViewProps)
         <ProjectSettingsModal
           projectId={selectedProject.id}
           projectName={selectedProject.name}
+          projectVisibility={(selectedProject as any).visibility || 'workspace'}
           onClose={() => setShowSettings(false)}
+          onVisibilityChange={(v) => {
+            setProjects(prev => prev.map(p =>
+              p.id === selectedProject.id ? { ...p, visibility: v } as any : p
+            ));
+          }}
         />
       )}
     </div>

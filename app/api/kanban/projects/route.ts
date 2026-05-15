@@ -76,9 +76,34 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
   let projectIds: string[] | undefined;
   if (isAgent(actor)) {
     projectIds = await getAgentProjectIds(actor.id);
+  } else {
+    // For regular users, filter by visibility
+    const userId = (actor as AuthUser).id;
+    const allProjects = await prisma.project.findMany({
+      where: {
+        ...(workspaceId && { workspaceId }),
+        ...(!includeArchived && { archived: false }),
+      },
+      select: { id: true, visibility: true, createdById: true } as any,
+    });
+
+    // Get project IDs the user is an explicit member of (for invite-only projects)
+    const memberRows = await (prisma as any).projectMember.findMany({
+      where: { userId },
+      select: { projectId: true },
+    });
+    const memberProjectIds = new Set(memberRows.map((r: any) => r.projectId));
+
+    projectIds = allProjects
+      .filter((p: any) => {
+        if (p.visibility === 'private') return p.createdById === userId;
+        if (p.visibility === 'invite') return memberProjectIds.has(p.id) || p.createdById === userId;
+        return true; // 'workspace' — visible to all workspace members
+      })
+      .map((p: any) => p.id);
   }
 
-  // Return all projects (filtered for agents)
+  // Return filtered projects
   const projects = await prisma.project.findMany({
     where: {
       ...(workspaceId && { workspaceId }),
@@ -96,7 +121,7 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
 
 // POST /api/kanban/projects - Create project
 export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
-  const { name, description, color, workspaceId: providedWorkspaceId } = await req.json();
+  const { name, description, color, workspaceId: providedWorkspaceId, visibility = 'workspace' } = await req.json();
 
   if (!name) {
     return badRequest('name required');
@@ -121,13 +146,15 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
   });
 
   // Create project with default columns, task types, and states
-  const project = await prisma.project.create({
+  const project = await (prisma.project.create as any)({
     data: {
       name,
       description,
       color: color || '#5865F2',
       position: (maxPos._max.position || 0) + 1,
       workspaceId,
+      visibility,
+      createdById: user.id,
       // Create default columns
       columns: {
         create: [
@@ -153,6 +180,11 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
     },
   });
 
+  // Add creator as project owner member
+  await (prisma as any).projectMember.create({
+    data: { projectId: project.id, userId: user.id, role: 'owner' },
+  });
+
   // Create a starter cycle (sprint) for the new project
   const now = new Date();
   const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -174,7 +206,7 @@ export const POST = withAuth(async (req: NextRequest, user: AuthUser) => {
 
 // PATCH /api/kanban/projects - Update project
 export const PATCH = withAuth(async (req: NextRequest, user: AuthUser) => {
-  const { id, name, description, color, archived, position } = await req.json();
+  const { id, name, description, color, archived, position, visibility } = await req.json();
 
   if (!id) {
     return badRequest('id required');
@@ -188,6 +220,7 @@ export const PATCH = withAuth(async (req: NextRequest, user: AuthUser) => {
       ...(color !== undefined && { color }),
       ...(archived !== undefined && { archived }),
       ...(position !== undefined && { position }),
+      ...(visibility !== undefined && { visibility }),
     },
   });
 

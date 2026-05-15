@@ -17,12 +17,37 @@ export async function canAccessProject(
   actor: AuthActor,
   projectId: string
 ): Promise<boolean> {
-  // Users can access all projects (temporary - will add user permissions later)
   if (!isAgent(actor)) {
-    return true;
+    const userId = (actor as import('./middleware').AuthUser).id;
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { visibility: true, createdById: true, workspaceId: true } as any,
+    }) as any;
+
+    if (!project) return false;
+
+    // Private: only creator
+    if (project.visibility === 'private') return project.createdById === userId;
+
+    // Workspace: must be a workspace member
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId, workspaceId: project.workspaceId } },
+    });
+    if (!membership) return false;
+
+    // Invite-only: must be creator or explicit ProjectMember
+    if (project.visibility === 'invite') {
+      if (project.createdById === userId) return true;
+      const member = await (prisma as any).projectMember.findUnique({
+        where: { projectId_userId: { projectId, userId } },
+      });
+      return !!member;
+    }
+
+    return true; // 'workspace' visibility + is workspace member
   }
-  
-  // Agents need explicit access
+
+  // Agents need explicit access via AgentProjectAccess
   const access = await prisma.agentProjectAccess.findUnique({
     where: {
       agentId_projectId: {
@@ -31,7 +56,7 @@ export async function canAccessProject(
       },
     },
   });
-  
+
   return !!access;
 }
 

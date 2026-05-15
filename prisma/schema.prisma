@@ -82,6 +82,10 @@ model User {
 
   // Research sessions created by this user
   researchSessions ResearchSession[] @relation("ResearchSessions")
+
+  // Project visibility relations
+  projectsCreated    Project[]       @relation("ProjectCreator")
+  projectMemberships ProjectMember[]
   
   // Agent extended memory
   agentMemories      AgentMemory[]      @relation("AgentMemories")
@@ -365,15 +369,20 @@ model Project {
   icon        String?
   archived    Boolean  @default(false)
   position    Int      @default(0)
+  visibility  String   @default("workspace") // "private" | "workspace" | "invite"
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  createdById String?
+  createdBy   User?    @relation("ProjectCreator", fields: [createdById], references: [id])
+
   columns     Column[]
   tags        Tag[]
   agentAccess AgentProjectAccess[]
+  members     ProjectMember[]
   activities  Activity[]
   taskTypes   TaskType[]
   states      State[]
@@ -382,6 +391,22 @@ model Project {
   pages       Page[]
 
   @@index([workspaceId])
+  @@index([createdById])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String   @default("member") // "owner" | "member" | "viewer"
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 // Task types (Bug, Feature, Task, Story)
