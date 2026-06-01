@@ -212,7 +212,7 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
                   <p className={`text-sm font-medium truncate ${task.completedAt ? 'line-through text-gray-500' : 'text-white'}`}>{task.title}</p>
                   {dueKey && (
                     <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-400' : isDueToday ? 'text-yellow-400' : 'text-gray-400'}`}>
-                      {isOverdue ? 'Overdue · ' : isDueToday ? 'Due today · ' : ''}{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : ''}
+                      {isOverdue ? 'Overdue · ' : isDueToday ? 'Due today · ' : ''}{task.dueDate ? task.dueDate.split('T')[0] : ''}
                     </p>
                   )}
                   {!dueKey && <p className="text-xs text-gray-500 mt-0.5">No due date</p>}

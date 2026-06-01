@@ -90,7 +90,7 @@ export default function KanbanCard({ task, isDragging, onClick, onDelete }: Kanb
           {task.dueDate ? (
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <Calendar className="w-3 h-3" />
-              <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+              <span>{task.dueDate.split('T')[0]}</span>
             </div>
           ) : (
             <div />
