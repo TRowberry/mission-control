@@ -56,7 +56,7 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
 
 // PATCH /api/kanban/tasks - Update task
 export const PATCH = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { id, title, description, columnId, priority, position, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, archived, completedAt } = await req.json();
+  const { id, title, description, columnId, priority, position, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, archived, completedAt, subtasks } = await req.json();
 
   if (!id) {
     return badRequest('id required');
@@ -65,6 +65,32 @@ export const PATCH = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
   // Check permission for agents
   if (!await canModifyTask(actor, { taskId: id })) {
     return forbidden('No access to this project');
+  }
+
+  // Handle subtask sync if provided
+  if (subtasks !== undefined && Array.isArray(subtasks)) {
+    const incoming = subtasks as { id?: string; title: string; completed: boolean }[];
+    const incomingIds = new Set(incoming.filter(s => s.id).map(s => s.id!));
+
+    // Delete subtasks that were removed
+    await prisma.subtask.deleteMany({
+      where: { taskId: id, id: { notIn: [...incomingIds] } },
+    });
+
+    // Upsert each subtask
+    for (let i = 0; i < incoming.length; i++) {
+      const s = incoming[i];
+      if (s.id) {
+        await prisma.subtask.update({
+          where: { id: s.id },
+          data: { title: s.title, completed: s.completed, position: i },
+        });
+      } else {
+        await prisma.subtask.create({
+          data: { title: s.title, completed: s.completed, position: i, taskId: id },
+        });
+      }
+    }
   }
 
   const task = await prisma.task.update({
