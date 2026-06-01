@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, MoreHorizontal, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Check, X, GripVertical } from 'lucide-react';
+
+const COLUMN_COLORS = [
+  '#6B7280', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
+  '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#06B6D4',
+];
 import KanbanCard from './KanbanCard';
 import TaskPanel from './TaskPanel';
 import { cn } from '@/lib/utils';
@@ -124,23 +129,47 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
   const onUpdate = () => fetchProject();
 
   async function handleDragEnd(result: DropResult) {
-    const { destination, source, draggableId } = result;
+    const { destination, source, draggableId, type } = result;
 
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    // Optimistic update
+    // ── Column reorder ──────────────────────────────────────────────────────
+    if (type === 'COLUMN') {
+      const reordered = Array.from(columns);
+      const [moved] = reordered.splice(source.index, 1);
+      reordered.splice(destination.index, 0, moved);
+      setColumns(reordered);
+
+      // Persist all positions
+      try {
+        await Promise.all(
+          reordered.map((col, idx) =>
+            fetch('/api/kanban/columns', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: col.id, position: idx }),
+            })
+          )
+        );
+      } catch (err) {
+        console.error('Failed to reorder columns:', err);
+        fetchProject();
+      }
+      return;
+    }
+
+    // ── Task move ───────────────────────────────────────────────────────────
     const newColumns = [...columns];
     const sourceCol = newColumns.find(c => c.id === source.droppableId);
     const destCol = newColumns.find(c => c.id === destination.droppableId);
-    
+
     if (!sourceCol || !destCol) return;
 
     const [movedTask] = sourceCol.tasks.splice(source.index, 1);
     destCol.tasks.splice(destination.index, 0, movedTask);
     setColumns(newColumns);
 
-    // API update
     try {
       await fetch('/api/kanban/tasks', {
         method: 'PUT',
@@ -154,7 +183,7 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
       });
     } catch (err) {
       console.error('Failed to move task:', err);
-      fetchProject(); // Revert on error
+      fetchProject();
     }
   }
 
@@ -246,6 +275,21 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
     }
   }
 
+  async function handleColorChange(columnId: string, color: string) {
+    setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color } : c));
+    setColumnMenu(null);
+    try {
+      await fetch('/api/kanban/columns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: columnId, color }),
+      });
+    } catch (err) {
+      console.error('Failed to update column color:', err);
+      fetchProject();
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -265,14 +309,34 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
   return (
     <>
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 h-full snap-x snap-mandatory md:snap-none">
-          {columns.map((column) => (
+        <Droppable droppableId="board" direction="horizontal" type="COLUMN">
+          {(boardProvided) => (
+        <div
+          ref={boardProvided.innerRef}
+          {...boardProvided.droppableProps}
+          className="flex gap-4 overflow-x-auto pb-4 h-full snap-x snap-mandatory md:snap-none"
+        >
+          {columns.map((column, colIndex) => (
+            <Draggable key={column.id} draggableId={`col-${column.id}`} index={colIndex}>
+              {(colProvided, colSnapshot) => (
             <div
-              key={column.id}
-              className="flex-shrink-0 w-[85vw] md:w-72 bg-[#2B2D31] rounded-lg flex flex-col h-full snap-center md:snap-align-none"
+              ref={colProvided.innerRef}
+              {...colProvided.draggableProps}
+              className={cn(
+                'flex-shrink-0 w-[85vw] md:w-72 bg-[#2B2D31] rounded-lg flex flex-col h-full snap-center md:snap-align-none',
+                colSnapshot.isDragging && 'ring-2 ring-primary shadow-2xl opacity-90'
+              )}
             >
               {/* Column header */}
               <div className="flex items-center justify-between p-3 border-b border-gray-700">
+                {/* Drag handle */}
+                <div
+                  {...colProvided.dragHandleProps}
+                  className="p-0.5 hover:bg-white/10 rounded cursor-grab active:cursor-grabbing mr-1 flex-shrink-0"
+                  title="Drag to reorder"
+                >
+                  <GripVertical className="w-3.5 h-3.5 text-gray-500" />
+                </div>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div
                     className="w-3 h-3 rounded-full flex-shrink-0"
@@ -305,7 +369,7 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                     <MoreHorizontal className="w-4 h-4 text-gray-400" />
                   </button>
                   {columnMenu === column.id && (
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-[#1E1F22] rounded-lg shadow-xl border border-gray-700 z-50 py-1">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-[#1E1F22] rounded-lg shadow-xl border border-gray-700 z-50 py-1">
                       <button
                         onClick={() => {
                           setEditingColumn(column.id);
@@ -317,9 +381,28 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                         <Pencil className="w-3.5 h-3.5 text-gray-400" />
                         Rename
                       </button>
+                      {/* Color picker */}
+                      <div className="px-3 py-2 border-t border-gray-700">
+                        <p className="text-xs text-gray-500 mb-2">Color</p>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {COLUMN_COLORS.map(c => (
+                            <button
+                              key={c}
+                              onClick={() => handleColorChange(column.id, c)}
+                              className="w-6 h-6 rounded-full hover:scale-110 transition-transform"
+                              style={{ backgroundColor: c }}
+                              title={c}
+                            >
+                              {(column.color || '#6B7280') === c && (
+                                <Check className="w-3 h-3 text-white mx-auto" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <button
                         onClick={() => handleDeleteColumn(column.id, column.tasks.length)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 text-left text-red-400"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 text-left text-red-400 border-t border-gray-700"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete
@@ -402,7 +485,11 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                 <span className="text-sm">Add task</span>
               </button>
             </div>
+              )}
+            </Draggable>
           ))}
+
+          {boardProvided.placeholder}
 
           {/* Add Column */}
           <div className="flex-shrink-0 w-[85vw] md:w-72 snap-center md:snap-align-none">
@@ -446,6 +533,8 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
             )}
           </div>
         </div>
+          )}
+        </Droppable>
       </DragDropContext>
 
       {/* Task detail panel */}
