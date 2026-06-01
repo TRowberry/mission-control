@@ -12,6 +12,7 @@ interface Task {
   description: string | null;
   priority: string;
   dueDate: string | null;
+  hasDueTime?: boolean;
   tags: Tag[];
 }
 
@@ -90,7 +91,11 @@ export default function KanbanCard({ task, isDragging, onClick, onDelete }: Kanb
           {task.dueDate ? (
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <Calendar className="w-3 h-3" />
-              <span>{task.dueDate.split('T')[0]}</span>
+              <span>
+                {task.hasDueTime
+                  ? new Date(task.dueDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  : task.dueDate.split('T')[0]}
+              </span>
             </div>
           ) : (
             <div />

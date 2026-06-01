@@ -534,10 +534,12 @@ model Task {
   priority    String    @default("medium") // low, medium, high, urgent
   position    Int       @default(0)
   estimate    Int? // Story points or hours
-  isDraft     Boolean   @default(false)
-  startDate   DateTime?
-  dueDate     DateTime?
-  completedAt DateTime?
+  isDraft      Boolean   @default(false)
+  startDate    DateTime?
+  hasStartTime Boolean   @default(false)
+  dueDate      DateTime?
+  hasDueTime   Boolean   @default(false)
+  completedAt  DateTime?
   archived    Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

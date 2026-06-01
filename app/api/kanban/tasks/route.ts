@@ -6,7 +6,7 @@ import { canModifyTask, canAccessProject } from '@/lib/modules/api/permissions';
 
 // POST /api/kanban/tasks - Create task
 export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { title, description, columnId, priority, startDate, dueDate, assigneeId, subtasks, tags } = await req.json();
+  const { title, description, columnId, priority, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, subtasks, tags } = await req.json();
 
   if (!title || !columnId) {
     return badRequest('title and columnId required');
@@ -30,7 +30,9 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       priority: priority || 'medium',
       position: (maxPos._max.position || 0) + 1,
       startDate: startDate ? new Date(startDate) : null,
+      hasStartTime: !!hasStartTime,
       dueDate: dueDate ? new Date(dueDate) : null,
+      hasDueTime: !!hasDueTime,
       columnId,
       createdById: actor.id,
       assigneeId,
@@ -54,7 +56,7 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
 
 // PATCH /api/kanban/tasks - Update task
 export const PATCH = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { id, title, description, columnId, priority, position, startDate, dueDate, assigneeId, archived, completedAt } = await req.json();
+  const { id, title, description, columnId, priority, position, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, archived, completedAt } = await req.json();
 
   if (!id) {
     return badRequest('id required');
@@ -74,7 +76,9 @@ export const PATCH = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       ...(priority !== undefined && { priority }),
       ...(position !== undefined && { position }),
       ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
+      ...(hasStartTime !== undefined && { hasStartTime: !!hasStartTime }),
       ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+      ...(hasDueTime !== undefined && { hasDueTime: !!hasDueTime }),
       ...(assigneeId !== undefined && { assigneeId }),
       ...(archived !== undefined && { archived }),
       ...(completedAt !== undefined && { completedAt: completedAt ? new Date(completedAt) : null }),

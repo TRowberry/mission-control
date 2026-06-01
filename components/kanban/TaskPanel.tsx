@@ -23,6 +23,15 @@ interface Tag {
   tag: { id: string; name: string; color: string };
 }
 
+/** Format a Date as YYYY-MM-DD in local timezone */
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/** Format a Date as HH:MM in local timezone */
+function localTimeStr(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 interface Subtask {
   id: string;
   title: string;
@@ -109,7 +118,10 @@ interface TaskWithRelations {
   description: string | null;
   priority: string;
   columnId: string;
+  startDate: string | null;
+  hasStartTime?: boolean;
   dueDate: string | null;
+  hasDueTime?: boolean;
   tags: Tag[];
   subtasks: Subtask[];
   assignee?: Assignee | null;
@@ -142,7 +154,11 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [selectedColumnId, setSelectedColumnId] = useState(columnId);
   const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [hasStartTime, setHasStartTime] = useState(false);
   const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('');
+  const [hasDueTime, setHasDueTime] = useState(false);
   const [subtasks, setSubtasks] = useState<{ id?: string; title: string; completed: boolean }[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
   const [saving, setSaving] = useState(false);
@@ -227,8 +243,41 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
       setDescription(task.description || '');
       setPriority(task.priority as 'low' | 'medium' | 'high');
       setSelectedColumnId(task.columnId);
-      setStartDate((task as any).startDate ? new Date((task as any).startDate).toISOString().split('T')[0] : '');
-      setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
+      // Start date/time
+      const rawStart = (task as any).startDate;
+      const hasStart = !!(task as any).hasStartTime;
+      if (rawStart) {
+        const d = new Date(rawStart);
+        if (hasStart) {
+          setStartDate(localDateStr(d));
+          setStartTime(localTimeStr(d));
+        } else {
+          setStartDate(rawStart.split('T')[0]);
+          setStartTime('');
+        }
+      } else {
+        setStartDate('');
+        setStartTime('');
+      }
+      setHasStartTime(hasStart);
+
+      // Due date/time
+      const rawDue = task.dueDate;
+      const hasDue = !!(task as any).hasDueTime;
+      if (rawDue) {
+        const d = new Date(rawDue);
+        if (hasDue) {
+          setDueDate(localDateStr(d));
+          setDueTime(localTimeStr(d));
+        } else {
+          setDueDate(rawDue.split('T')[0]);
+          setDueTime('');
+        }
+      } else {
+        setDueDate('');
+        setDueTime('');
+      }
+      setHasDueTime(hasDue);
       setSubtasks(task.subtasks.map(s => ({ id: s.id, title: s.title, completed: s.completed })));
       setAssigneeId(task.assignee?.id || null);
       setIsEditingDescription(false);
@@ -274,8 +323,18 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
         description: description.trim() || null,
         priority,
         columnId: selectedColumnId,
-        startDate: startDate || null,
-        dueDate: dueDate || null,
+        startDate: startDate
+          ? (hasStartTime && startTime
+              ? new Date(`${startDate}T${startTime}`).toISOString()
+              : startDate)
+          : null,
+        hasStartTime: hasStartTime && !!startTime,
+        dueDate: dueDate
+          ? (hasDueTime && dueTime
+              ? new Date(`${dueDate}T${dueTime}`).toISOString()
+              : dueDate)
+          : null,
+        hasDueTime: hasDueTime && !!dueTime,
         subtasks,
         assigneeId: assigneeId || null,
       };
@@ -682,35 +741,77 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
                 </select>
               </div>
 
-              {/* Start Date */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 w-32 text-sm text-gray-500">
+              {/* Start Date + optional Time */}
+              <div className="flex items-start gap-4">
+                <div className="flex items-center gap-2 w-32 text-sm text-gray-500 pt-1.5">
                   <Calendar className="w-4 h-4" />
                   <span>Start date</span>
                 </div>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                />
-                {startDate && (
-                  <button onClick={() => setStartDate('')} className="text-xs text-gray-400 hover:text-gray-200">clear</button>
-                )}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                    {startDate && !hasStartTime && (
+                      <button onClick={() => setHasStartTime(true)} className="text-xs text-blue-500 hover:text-blue-400">+ time</button>
+                    )}
+                    {startDate && hasStartTime && (
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
+                    {startDate && hasStartTime && (
+                      <button onClick={() => { setHasStartTime(false); setStartTime(''); }} className="text-xs text-gray-400 hover:text-gray-200">− time</button>
+                    )}
+                    {startDate && (
+                      <button onClick={() => { setStartDate(''); setStartTime(''); setHasStartTime(false); }} className="text-xs text-gray-400 hover:text-gray-200">clear</button>
+                    )}
+                  </div>
+                  {startDate && hasStartTime && (
+                    <p className="text-xs text-gray-500">Stored in your local timezone</p>
+                  )}
+                </div>
               </div>
 
-              {/* Due Date */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 w-32 text-sm text-gray-500">
+              {/* Due Date + optional Time */}
+              <div className="flex items-start gap-4">
+                <div className="flex items-center gap-2 w-32 text-sm text-gray-500 pt-1.5">
                   <Calendar className="w-4 h-4" />
                   <span>Due date</span>
                 </div>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                    {dueDate && !hasDueTime && (
+                      <button onClick={() => setHasDueTime(true)} className="text-xs text-blue-500 hover:text-blue-400">+ time</button>
+                    )}
+                    {dueDate && hasDueTime && (
+                      <input
+                        type="time"
+                        value={dueTime}
+                        onChange={(e) => setDueTime(e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
+                    {dueDate && hasDueTime && (
+                      <button onClick={() => { setHasDueTime(false); setDueTime(''); }} className="text-xs text-gray-400 hover:text-gray-200">− time</button>
+                    )}
+                  </div>
+                  {dueDate && hasDueTime && (
+                    <p className="text-xs text-gray-500">Stored in your local timezone</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

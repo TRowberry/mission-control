@@ -79,7 +79,9 @@ export async function GET(
               description: true,
               priority: true,
               startDate: true,
+              hasStartTime: true,
               dueDate: true,
+              hasDueTime: true,
               completedAt: true,
             },
           },
@@ -113,19 +115,36 @@ export async function GET(
 
   // Build VEVENT blocks
   const events = tasks.map((task: any) => {
-    const dtStart = icsDate(task.startDate ?? task.dueDate);
-    const dtEnd = nextDay(task.dueDate);
     const status = task.completedAt ? 'COMPLETED' : 'CONFIRMED';
     const priority = PRIORITY_MAP[task.priority] ?? 5;
     const url = `${appUrl}/project/${projectId}?tab=kanban`;
     const description = [task.description, url].filter(Boolean).join('\\n\\n');
 
+    let dtStartLine: string;
+    let dtEndLine: string;
+
+    if (task.hasDueTime) {
+      // Timed event — use UTC datetime format (calendar apps convert to local)
+      const startIso = task.startDate && task.hasStartTime
+        ? new Date(task.startDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+        : new Date(task.dueDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      const endIso = new Date(task.dueDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      dtStartLine = `DTSTART:${startIso}`;
+      dtEndLine = `DTEND:${endIso}`;
+    } else {
+      // All-day event
+      const dtStart = icsDate(task.startDate ?? task.dueDate);
+      const dtEnd = nextDay(task.dueDate);
+      dtStartLine = `DTSTART;VALUE=DATE:${dtStart}`;
+      dtEndLine = `DTEND;VALUE=DATE:${dtEnd}`;
+    }
+
     return [
       'BEGIN:VEVENT',
       `UID:mc-task-${task.id}@mission-control`,
       `DTSTAMP:${stamp}`,
-      `DTSTART;VALUE=DATE:${dtStart}`,
-      `DTEND;VALUE=DATE:${dtEnd}`,
+      dtStartLine,
+      dtEndLine,
       `SUMMARY:${icsEscape(task.title)}`,
       `DESCRIPTION:${icsEscape(description)}`,
       `URL:${url}`,

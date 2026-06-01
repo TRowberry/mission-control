@@ -16,7 +16,9 @@ interface Task {
   title: string;
   priority: 'urgent' | 'high' | 'medium' | 'low' | 'none' | string;
   dueDate: string | null;
+  hasDueTime?: boolean;
   startDate: string | null;
+  hasStartTime?: boolean;
   assignee: Assignee | null;
   completedAt: string | null;
   createdAt?: string | null;
@@ -496,7 +498,8 @@ function CalendarView({
     const map = new Map<string, Task[]>();
     for (const t of allTasks) {
       if (!t.dueDate) continue;
-      const d = parseDateStr(t.dueDate);
+      // Time-aware: use local Date (UTC→local); date-only: parse without TZ shift
+      const d = t.hasDueTime ? new Date(t.dueDate) : parseDateStr(t.dueDate);
       const key = dateKey(d);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
@@ -560,6 +563,11 @@ function CalendarView({
                         onClick={() => onTaskClick?.(t.id)}
                         className={`truncate text-[10px] px-1.5 py-0.5 rounded border-l-2 ${onTaskClick ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${style.bg} ${style.border} ${style.text}`}
                       >
+                        {t.hasDueTime && t.dueDate ? (
+                          <span className="font-medium mr-1">
+                            {new Date(t.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ) : null}
                         {t.title}
                       </div>
                     );
