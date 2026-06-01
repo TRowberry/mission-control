@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, MoreHorizontal, Archive, Trash2, Settings } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Check, X } from 'lucide-react';
 import KanbanCard from './KanbanCard';
 import TaskPanel from './TaskPanel';
 import { cn } from '@/lib/utils';
@@ -67,6 +67,14 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Column management state
+  const [columnMenu, setColumnMenu] = useState<string | null>(null); // columnId with open menu
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [editingColumnName, setEditingColumnName] = useState('');
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColumnName, setNewColumnName] = useState('');
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+
   const fetchProject = async () => {
     try {
       const res = await fetch(`/api/kanban/projects?id=${projectId}`);
@@ -85,6 +93,18 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
   useEffect(() => {
     fetchProject();
   }, [projectId]);
+
+  // Close column menu on outside click
+  useEffect(() => {
+    if (!columnMenu) return;
+    function handler(e: MouseEvent) {
+      if (columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
+        setColumnMenu(null);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [columnMenu]);
 
   // Auto-open task modal if highlightedTaskId is provided
   useEffect(() => {
@@ -173,6 +193,59 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
     }
   }
 
+  async function handleAddColumn() {
+    if (!newColumnName.trim()) {
+      setIsAddingColumn(false);
+      return;
+    }
+    try {
+      const res = await fetch('/api/kanban/columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, name: newColumnName.trim() }),
+      });
+      if (res.ok) {
+        setNewColumnName('');
+        setIsAddingColumn(false);
+        fetchProject();
+      }
+    } catch (err) {
+      console.error('Failed to add column:', err);
+    }
+  }
+
+  async function handleRenameColumn(columnId: string) {
+    if (!editingColumnName.trim()) {
+      setEditingColumn(null);
+      return;
+    }
+    try {
+      await fetch('/api/kanban/columns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: columnId, name: editingColumnName.trim() }),
+      });
+      setEditingColumn(null);
+      fetchProject();
+    } catch (err) {
+      console.error('Failed to rename column:', err);
+    }
+  }
+
+  async function handleDeleteColumn(columnId: string, taskCount: number) {
+    const msg = taskCount > 0
+      ? `Delete this column and its ${taskCount} task${taskCount > 1 ? 's' : ''}? This cannot be undone.`
+      : 'Delete this column?';
+    if (!confirm(msg)) return;
+    try {
+      await fetch(`/api/kanban/columns?id=${columnId}`, { method: 'DELETE' });
+      setColumnMenu(null);
+      fetchProject();
+    } catch (err) {
+      console.error('Failed to delete column:', err);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -200,19 +273,60 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
             >
               {/* Column header */}
               <div className="flex items-center justify-between p-3 border-b border-gray-700">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: column.color || '#5865F2' }}
                   />
-                  <h3 className="font-medium text-sm">{column.name}</h3>
-                  <span className="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">
+                  {editingColumn === column.id ? (
+                    <input
+                      autoFocus
+                      value={editingColumnName}
+                      onChange={(e) => setEditingColumnName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameColumn(column.id);
+                        if (e.key === 'Escape') setEditingColumn(null);
+                      }}
+                      onBlur={() => handleRenameColumn(column.id)}
+                      className="flex-1 bg-gray-700 rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  ) : (
+                    <h3 className="font-medium text-sm truncate">{column.name}</h3>
+                  )}
+                  <span className="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
                     {column.tasks.length}
                   </span>
                 </div>
-                <button className="p-1 hover:bg-white/10 rounded">
-                  <MoreHorizontal className="w-4 h-4 text-gray-400" />
-                </button>
+                <div className="relative flex-shrink-0" ref={columnMenu === column.id ? columnMenuRef : undefined}>
+                  <button
+                    onClick={() => setColumnMenu(columnMenu === column.id ? null : column.id)}
+                    className="p-1 hover:bg-white/10 rounded"
+                  >
+                    <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                  </button>
+                  {columnMenu === column.id && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-[#1E1F22] rounded-lg shadow-xl border border-gray-700 z-50 py-1">
+                      <button
+                        onClick={() => {
+                          setEditingColumn(column.id);
+                          setEditingColumnName(column.name);
+                          setColumnMenu(null);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 text-left"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-gray-400" />
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => handleDeleteColumn(column.id, column.tasks.length)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 text-left text-red-400"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Tasks */}
@@ -289,6 +403,48 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
               </button>
             </div>
           ))}
+
+          {/* Add Column */}
+          <div className="flex-shrink-0 w-[85vw] md:w-72 snap-center md:snap-align-none">
+            {isAddingColumn ? (
+              <div className="bg-[#2B2D31] rounded-lg p-3">
+                <input
+                  autoFocus
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddColumn();
+                    if (e.key === 'Escape') { setIsAddingColumn(false); setNewColumnName(''); }
+                  }}
+                  onBlur={handleAddColumn}
+                  placeholder="Column name..."
+                  className="w-full bg-[#1E1F22] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={handleAddColumn}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-primary rounded text-sm hover:bg-primary-hover"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Add
+                  </button>
+                  <button
+                    onClick={() => { setIsAddingColumn(false); setNewColumnName(''); }}
+                    className="p-1.5 hover:bg-white/10 rounded text-gray-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAddingColumn(true)}
+                className="w-full flex items-center gap-2 p-3 bg-[#2B2D31]/50 hover:bg-[#2B2D31] rounded-lg text-gray-400 hover:text-gray-200 border-2 border-dashed border-gray-700 hover:border-gray-500 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-sm">Add column</span>
+              </button>
+            )}
+          </div>
         </div>
       </DragDropContext>
 
