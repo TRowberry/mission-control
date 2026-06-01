@@ -141,6 +141,7 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [selectedColumnId, setSelectedColumnId] = useState(columnId);
+  const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [subtasks, setSubtasks] = useState<{ id?: string; title: string; completed: boolean }[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -226,6 +227,7 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
       setDescription(task.description || '');
       setPriority(task.priority as 'low' | 'medium' | 'high');
       setSelectedColumnId(task.columnId);
+      setStartDate((task as any).startDate ? new Date((task as any).startDate).toISOString().split('T')[0] : '');
       setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
       setSubtasks(task.subtasks.map(s => ({ id: s.id, title: s.title, completed: s.completed })));
       setAssigneeId(task.assignee?.id || null);
@@ -272,6 +274,7 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
         description: description.trim() || null,
         priority,
         columnId: selectedColumnId,
+        startDate: startDate || null,
         dueDate: dueDate || null,
         subtasks,
         assigneeId: assigneeId || null,
@@ -677,6 +680,23 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
+              </div>
+
+              {/* Start Date */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 w-32 text-sm text-gray-500">
+                  <Calendar className="w-4 h-4" />
+                  <span>Start date</span>
+                </div>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-0 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                />
+                {startDate && (
+                  <button onClick={() => setStartDate('')} className="text-xs text-gray-400 hover:text-gray-200">clear</button>
+                )}
               </div>
 
               {/* Due Date */}
