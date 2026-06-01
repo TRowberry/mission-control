@@ -2,9 +2,13 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { withAuthParams } from '@/lib/modules/api/middleware';
 import { ok, badRequest, notFound } from '@/lib/modules/api/response';
+import { getCurrentUser } from '@/lib/auth';
 
-// GET /api/invites/[token] - get invite details (to show on accept page)
-export const GET = withAuthParams(async (_req: NextRequest, user, params) => {
+// GET /api/invites/[token] - get invite details (public — no auth required)
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
   const { token } = await params;
 
   const invite = await prisma.invite.findUnique({
@@ -19,10 +23,17 @@ export const GET = withAuthParams(async (_req: NextRequest, user, params) => {
   if (invite.usedAt) return badRequest('Invite has already been used');
   if (invite.expiresAt < new Date()) return badRequest('Invite has expired');
 
-  // Check if user is already a member
-  const existing = await prisma.workspaceMember.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: invite.workspaceId } },
-  });
+  // Check if the current user (if any) is already a member
+  let alreadyMember = false;
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      const existing = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: user.id, workspaceId: invite.workspaceId } },
+      });
+      alreadyMember = !!existing;
+    }
+  } catch { /* not logged in — that's fine */ }
 
   return ok({
     workspace: {
@@ -34,9 +45,9 @@ export const GET = withAuthParams(async (_req: NextRequest, user, params) => {
     role: invite.role,
     invitedBy: invite.invitedBy,
     expiresAt: invite.expiresAt,
-    alreadyMember: !!existing,
+    alreadyMember,
   });
-});
+}
 
 // POST /api/invites/[token] - accept invite
 export const POST = withAuthParams(async (_req: NextRequest, user, params) => {

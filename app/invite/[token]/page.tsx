@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Rocket, Check, X } from 'lucide-react';
+import { Rocket, Check, X, LogIn, UserPlus } from 'lucide-react';
 import { useWorkspace } from '@/components/providers/WorkspaceContext';
 
 interface InviteInfo {
@@ -23,8 +23,15 @@ export default function InvitePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Check auth state
+    fetch('/api/auth/me')
+      .then(r => setIsLoggedIn(r.ok))
+      .catch(() => setIsLoggedIn(false));
+
+    // Load invite info (public endpoint)
     fetch(`/api/invites/${token}`)
       .then(r => r.json())
       .then(data => {
@@ -91,23 +98,38 @@ export default function InvitePage() {
               </div>
 
               <h2 className="text-lg font-semibold text-white mb-1">
-                {info.alreadyMember ? 'You\'re already a member' : 'You\'ve been invited'}
+                You&apos;ve been invited
               </h2>
-              <p className="text-gray-400 text-sm mb-1">
-                {info.alreadyMember
-                  ? `You already have access to ${info.workspace.name}.`
-                  : (
-                    <>
-                      <span className="text-white">{info.invitedBy.displayName}</span>
-                      {' '}invited you to join{' '}
-                      <span className="text-white font-medium">{info.workspace.name}</span>
-                      {' '}as a{' '}
-                      <span className="text-primary">{info.role}</span>.
-                    </>
-                  )}
+              <p className="text-gray-400 text-sm mb-4">
+                <span className="text-white">{info.invitedBy.displayName}</span>
+                {' '}invited you to join{' '}
+                <span className="text-white font-medium">{info.workspace.name}</span>
+                {' '}as a{' '}
+                <span className="text-primary">{info.role}</span>.
               </p>
 
-              {info.alreadyMember ? (
+              {/* Not logged in — show login / register options */}
+              {isLoggedIn === false && (
+                <div className="space-y-2 mt-5">
+                  <a
+                    href={`/register?invite=${token}`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Create account &amp; join
+                  </a>
+                  <a
+                    href={`/login?redirect=/invite/${token}`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1E1F22] text-gray-300 rounded-lg hover:bg-white/5 text-sm font-medium border border-gray-600"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Log in to accept
+                  </a>
+                </div>
+              )}
+
+              {/* Logged in and already a member */}
+              {isLoggedIn && info.alreadyMember && (
                 <button
                   onClick={() => { setActiveWorkspaceId(info.workspace.id); router.push('/dashboard'); }}
                   className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
@@ -115,22 +137,26 @@ export default function InvitePage() {
                   <Check className="w-4 h-4" />
                   Go to {info.workspace.name}
                 </button>
-              ) : (
-                <button
-                  onClick={accept}
-                  disabled={accepting}
-                  className="mt-5 w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
-                >
-                  {accepting ? 'Joining…' : `Join ${info.workspace.name}`}
-                </button>
               )}
 
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="mt-2 w-full px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5"
-              >
-                Maybe later
-              </button>
+              {/* Logged in, not yet a member */}
+              {isLoggedIn && !info.alreadyMember && (
+                <>
+                  <button
+                    onClick={accept}
+                    disabled={accepting}
+                    className="mt-5 w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
+                  >
+                    {accepting ? 'Joining…' : `Join ${info.workspace.name}`}
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard')}
+                    className="mt-2 w-full px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5"
+                  >
+                    Maybe later
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

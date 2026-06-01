@@ -6,14 +6,6 @@ import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if registration is disabled
-    if (process.env.REGISTRATION_DISABLED === 'true') {
-      return NextResponse.json(
-        { error: 'Registration is currently disabled' },
-        { status: 403 }
-      );
-    }
-
     // Rate limit: 3 registration attempts per hour per IP
     const clientIp = getClientIp(request);
     const rateCheck = checkRateLimit(`register:${clientIp}`, RATE_LIMITS.register);
@@ -29,7 +21,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, username, displayName, password } = await request.json();
+    const { email, username, displayName, password, inviteToken } = await request.json();
+
+    // Validate invite token if registration is disabled
+    let validInvite: { id: string; workspaceId: string; role: string } | null = null;
+    if (process.env.REGISTRATION_DISABLED === 'true') {
+      if (!inviteToken) {
+        return NextResponse.json(
+          { error: 'An invite is required to create an account' },
+          { status: 403 }
+        );
+      }
+      const invite = await prisma.invite.findUnique({ where: { token: inviteToken } });
+      if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invite link' },
+          { status: 403 }
+        );
+      }
+      validInvite = { id: invite.id, workspaceId: invite.workspaceId, role: invite.role };
+    }
 
     // Validate input
     if (!email || !username || !displayName || !password) {
@@ -72,25 +83,37 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create default workspace for user
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: `${displayName}'s Workspace`,
-        slug: generateSlug(`${username}-workspace`),
-        members: {
-          create: {
-            userId: user.id,
-            role: 'owner',
+    let workspace;
+
+    if (validInvite) {
+      // Join the invited workspace instead of creating a new one
+      workspace = await prisma.workspace.findUnique({ where: { id: validInvite.workspaceId } });
+      await prisma.workspaceMember.create({
+        data: { userId: user.id, workspaceId: validInvite.workspaceId, role: validInvite.role },
+      });
+      // Mark email-specific invites as used
+      const invite = await prisma.invite.findUnique({ where: { id: validInvite.id } });
+      if (invite?.email) {
+        await prisma.invite.update({ where: { id: validInvite.id }, data: { usedAt: new Date() } });
+      }
+    } else {
+      // Create default workspace for user (open registration path)
+      workspace = await prisma.workspace.create({
+        data: {
+          name: `${displayName}'s Workspace`,
+          slug: generateSlug(`${username}-workspace`),
+          members: {
+            create: { userId: user.id, role: 'owner' },
+          },
+          channels: {
+            create: [
+              { name: 'general', slug: 'general', type: 'text', position: 0 },
+              { name: 'random', slug: 'random', type: 'text', position: 1 },
+            ],
           },
         },
-        channels: {
-          create: [
-            { name: 'general', slug: 'general', type: 'text', position: 0 },
-            { name: 'random', slug: 'random', type: 'text', position: 1 },
-          ],
-        },
-      },
-    });
+      });
+    }
 
     // Generate token and set cookie
     const token = generateToken({
@@ -107,11 +130,11 @@ export async function POST(request: NextRequest) {
         username: user.username,
         displayName: user.displayName,
       },
-      workspace: {
+      workspace: workspace ? {
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
-      },
+      } : null,
     });
   } catch (error) {
     console.error('Registration error:', error);
