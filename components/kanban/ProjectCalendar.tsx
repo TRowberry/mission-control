@@ -83,6 +83,12 @@ function diffDays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
+/** Parse an ISO date string as a LOCAL midnight Date (avoids UTC→local day shift) */
+function parseDateStr(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function startOfWeek(d: Date): Date {
   const r = new Date(d);
   r.setDate(r.getDate() - r.getDay());
@@ -240,8 +246,8 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
   // Mobile: show compact task list instead of calendar/gantt
   if (isMobile) {
     const sortedTasks = [...allTasks].sort((a, b) => {
-      const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-      const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+      const aDate = a.dueDate ? parseDateStr(a.dueDate).getTime() : Infinity;
+      const bDate = b.dueDate ? parseDateStr(b.dueDate).getTime() : Infinity;
       return aDate - bDate;
     });
     const todayStr = dateKey(today);
@@ -255,7 +261,7 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
             <div className="p-6 text-center text-gray-400 text-sm">No tasks with dates</div>
           )}
           {sortedTasks.map(task => {
-            const dueKey = task.dueDate ? dateKey(new Date(task.dueDate)) : null;
+            const dueKey = task.dueDate ? dateKey(parseDateStr(task.dueDate)) : null;
             const isOverdue = dueKey && dueKey < todayStr && !task.completedAt;
             const isDueToday = dueKey === todayStr;
             return (
@@ -490,7 +496,7 @@ function CalendarView({
     const map = new Map<string, Task[]>();
     for (const t of allTasks) {
       if (!t.dueDate) continue;
-      const d = new Date(t.dueDate);
+      const d = parseDateStr(t.dueDate);
       const key = dateKey(d);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
@@ -619,9 +625,9 @@ function GanttView({
 
     for (const col of columns) {
       for (const t of col.tasks) {
-        if (t.startDate) allDates.push(new Date(t.startDate));
-        if (t.dueDate) allDates.push(new Date(t.dueDate));
-        if (t.createdAt) allDates.push(new Date(t.createdAt));
+        if (t.startDate) allDates.push(parseDateStr(t.startDate));
+        if (t.dueDate) allDates.push(parseDateStr(t.dueDate));
+        if (t.createdAt) allDates.push(parseDateStr(t.createdAt));
       }
     }
 
@@ -760,12 +766,12 @@ function GanttRow({
   const barColor = getPriorityBar(task.priority);
 
   const start = task.startDate
-    ? startOfDay(new Date(task.startDate))
+    ? parseDateStr(task.startDate)
     : task.createdAt
-      ? startOfDay(new Date(task.createdAt))
+      ? parseDateStr(task.createdAt)
       : null;
 
-  const end = task.dueDate ? startOfDay(new Date(task.dueDate)) : null;
+  const end = task.dueDate ? parseDateStr(task.dueDate) : null;
 
   let barLeft = 0;
   let barWidth = 0;
