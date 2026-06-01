@@ -31,7 +31,8 @@ model User {
   // Agent-specific fields
   isAgent    Boolean @default(false)
   apiKey     String? @unique // API key for agent auth
-  webhookUrl String? // Optional webhook for push notifications
+  webhookUrl    String? // Optional webhook for push notifications
+  calendarToken String? @unique // Token for ICS calendar feed subscriptions
 
   // Relations
   workspaces    WorkspaceMember[]

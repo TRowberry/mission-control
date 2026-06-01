@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, BarChart3, Clock, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, BarChart3, Clock, CheckCircle2, Link2, Copy, Check, RefreshCw, X } from 'lucide-react';
 import { useMobile } from '@/components/layout/MobileContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -131,6 +131,13 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
+  // Sync panel state
+  const [showSync, setShowSync] = useState(false);
+  const [calendarToken, setCalendarToken] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
   // Fetch data
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +180,60 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
     setViewYear(today.getFullYear());
     setViewMonth(today.getMonth());
   }, [today]);
+
+  // ─── Sync helpers ────────────────────────────────────────────────────────
+
+  async function openSync() {
+    setShowSync(true);
+    if (calendarToken) return;
+    setSyncLoading(true);
+    try {
+      const res = await fetch('/api/users/calendar-token');
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarToken(data.calendarToken);
+      }
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
+  async function regenerateToken() {
+    setRegenerating(true);
+    try {
+      const res = await fetch('/api/users/calendar-token', { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarToken(data.calendarToken);
+        setCopied(false);
+      }
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  function getFeedUrl(token: string) {
+    const host = window.location.host;
+    return `webcal://${host}/api/calendar/${projectId}?token=${token}`;
+  }
+
+  async function copyUrl() {
+    if (!calendarToken) return;
+    await navigator.clipboard.writeText(getFeedUrl(calendarToken));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function addToGoogle() {
+    if (!calendarToken) return;
+    const url = getFeedUrl(calendarToken);
+    window.open(`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(url)}`, '_blank');
+  }
+
+  function addToApple() {
+    if (!calendarToken) return;
+    window.location.href = getFeedUrl(calendarToken);
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -273,6 +334,20 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
             <BarChart3 size={15} />
             Gantt
           </button>
+
+          {/* Sync button */}
+          <button
+            onClick={openSync}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              showSync
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+            }`}
+            title="Sync to external calendar"
+          >
+            <Link2 size={15} />
+            Sync
+          </button>
         </div>
 
         {view === 'calendar' && (
@@ -301,6 +376,79 @@ export default function ProjectCalendar({ projectId, onTaskClick }: ProjectCalen
           </div>
         )}
       </div>
+
+      {/* ── Sync Panel ─────────────────────────────────────────────────── */}
+      {showSync && (
+        <div className="border-b border-gray-700 bg-gray-900 px-4 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-100">Subscribe to Calendar Feed</h3>
+            <button onClick={() => setShowSync(false)} className="p-1 hover:bg-gray-700 rounded text-gray-400">
+              <X size={14} />
+            </button>
+          </div>
+
+          {syncLoading ? (
+            <p className="text-sm text-gray-400">Generating feed URL…</p>
+          ) : calendarToken ? (
+            <>
+              <p className="text-xs text-gray-400 mb-3">
+                Add this URL as a subscribed calendar. Tasks with due dates will appear as events and stay in sync automatically.
+              </p>
+
+              {/* URL display */}
+              <div className="flex items-center gap-2 mb-4">
+                <code className="flex-1 bg-gray-800 rounded px-3 py-2 text-xs text-gray-300 truncate select-all">
+                  {getFeedUrl(calendarToken)}
+                </code>
+                <button
+                  onClick={copyUrl}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-200 transition-colors flex-shrink-0"
+                >
+                  {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Calendar app buttons */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  onClick={addToGoogle}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20 3H4v1.5l8 4.5 8-4.5V3zM4 21h16V8.5l-8 4.5-8-4.5V21z"/>
+                  </svg>
+                  Add to Google Calendar
+                </button>
+                <button
+                  onClick={addToApple}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-200 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                  </svg>
+                  Add to Apple Calendar
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Calendar apps refresh subscribed feeds every few hours.{' '}
+                <button
+                  onClick={regenerateToken}
+                  disabled={regenerating}
+                  className="text-gray-400 hover:text-gray-200 underline inline-flex items-center gap-1"
+                >
+                  {regenerating ? <RefreshCw size={10} className="animate-spin" /> : null}
+                  Regenerate link
+                </button>
+                {' '}to invalidate this URL and get a new one.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-red-400">Failed to generate calendar token. Please try again.</p>
+          )}
+        </div>
+      )}
 
       {/* ── Content ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
