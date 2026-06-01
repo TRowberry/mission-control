@@ -6,7 +6,7 @@ import { canModifyTask, canAccessProject } from '@/lib/modules/api/permissions';
 
 // POST /api/kanban/tasks - Create task
 export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
-  const { title, description, columnId, priority, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, subtasks, tags } = await req.json();
+  const { title, description, columnId, priority, startDate, hasStartTime, dueDate, hasDueTime, assigneeId, subtasks, tags, parentId } = await req.json();
 
   if (!title || !columnId) {
     return badRequest('title and columnId required');
@@ -36,6 +36,7 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       columnId,
       createdById: actor.id,
       assigneeId,
+      parentId: parentId || null,
       subtasks: subtasks ? {
         create: subtasks.map((s: { title: string; completed?: boolean }, i: number) => ({
           title: s.title,
@@ -48,6 +49,15 @@ export const POST = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       subtasks: { orderBy: { position: 'asc' } },
       tags: { include: { tag: true } },
       assignee: { select: { id: true, displayName: true, avatar: true } },
+      children: {
+        where: { archived: false },
+        orderBy: { position: 'asc' },
+        include: {
+          assignee: { select: { id: true, displayName: true, avatar: true } },
+          state: { select: { id: true, name: true, group: true, color: true } },
+          subtasks: { orderBy: { position: 'asc' } },
+        },
+      },
     },
   });
 
@@ -113,6 +123,15 @@ export const PATCH = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
       subtasks: { orderBy: { position: 'asc' } },
       tags: { include: { tag: true } },
       assignee: { select: { id: true, displayName: true, avatar: true } },
+      children: {
+        where: { archived: false },
+        orderBy: { position: 'asc' },
+        include: {
+          assignee: { select: { id: true, displayName: true, avatar: true } },
+          state: { select: { id: true, name: true, group: true, color: true } },
+          subtasks: { orderBy: { position: 'asc' } },
+        },
+      },
     },
   });
 

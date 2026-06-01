@@ -14,7 +14,9 @@ import {
   Clock,
   Pencil,
   MoreHorizontal,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ArrowLeft,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TaskReviewPanel } from '@/components/review';
@@ -112,6 +114,19 @@ interface ReviewItem {
   createdAt: string;
 }
 
+interface ChildTask {
+  id: string;
+  title: string;
+  priority: string;
+  columnId: string;
+  dueDate: string | null;
+  hasDueTime?: boolean;
+  completedAt: string | null;
+  assignee?: Assignee | null;
+  state?: { id: string; name: string; group: string; color: string } | null;
+  subtasks: Subtask[];
+}
+
 interface TaskWithRelations {
   id: string;
   title: string;
@@ -124,6 +139,7 @@ interface TaskWithRelations {
   hasDueTime?: boolean;
   tags: Tag[];
   subtasks: Subtask[];
+  children?: ChildTask[];
   assignee?: Assignee | null;
   createdAt?: string;
 }
@@ -145,9 +161,11 @@ interface TaskPanelProps {
   columns: Column[];
   onClose: () => void;
   onUpdate: () => void;
+  parentTask?: { id: string; title: string } | null;
+  onBack?: () => void;
 }
 
-export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }: TaskPanelProps) {
+export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, parentTask, onBack }: TaskPanelProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -174,6 +192,11 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [reviewViewMode, setReviewViewMode] = useState<'grid' | 'review'>('grid');
   const [showReviewModal, setShowReviewModal] = useState(false);
+
+  // Child task (sub-task) state
+  const [activeChildTask, setActiveChildTask] = useState<ChildTask | null>(null);
+  const [newChildTitle, setNewChildTitle] = useState('');
+  const [addingChild, setAddingChild] = useState(false);
   
   const panelRef = useRef<HTMLDivElement>(null);
   const isNew = !task;
@@ -389,6 +412,31 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
     if (!newSubtask.trim()) return;
     setSubtasks([...subtasks, { title: newSubtask.trim(), completed: false }]);
     setNewSubtask('');
+  };
+
+  const handleAddChildTask = async () => {
+    if (!newChildTitle.trim() || !task?.id) return;
+    setAddingChild(true);
+    try {
+      const res = await fetch('/api/kanban/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newChildTitle.trim(),
+          columnId: task.columnId,
+          parentId: task.id,
+          priority: 'medium',
+        }),
+      });
+      if (res.ok) {
+        setNewChildTitle('');
+        onUpdate();
+      }
+    } catch (err) {
+      console.error('Failed to create child task:', err);
+    } finally {
+      setAddingChild(false);
+    }
   };
 
   const toggleSubtask = (index: number) => {
@@ -651,12 +699,22 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleClose}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {onBack ? (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-1.5 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-sm"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="max-w-[140px] truncate">{parentTask?.title ?? 'Back'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleClose}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
@@ -977,54 +1035,159 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
             )}
           </div>
 
-          {/* Subtasks Section */}
+          {/* Sub-tasks Section (full child tasks) */}
+          {!isNew && (
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
+                  Sub-tasks
+                  {(task?.children?.length ?? 0) > 0 && (
+                    <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">
+                      {task?.children?.filter(c => c.completedAt).length}/{task?.children?.length}
+                    </span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setNewChildTitle(' ')}
+                  className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+              </div>
+
+              {/* Child task rows */}
+              {(task?.children?.length ?? 0) > 0 && (
+                <div className="mb-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  {/* Table header */}
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-400 font-medium border-b border-gray-200 dark:border-gray-700">
+                    <span>Name</span>
+                    <span>Assignee</span>
+                    <span>Due date</span>
+                  </div>
+
+                  {task?.children?.map((child) => (
+                    <div
+                      key={child.id}
+                      className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 items-center hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 last:border-0 group"
+                    >
+                      {/* Name + checkbox */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={cn(
+                          'w-4 h-4 rounded border-2 flex-shrink-0',
+                          child.completedAt
+                            ? 'bg-green-500 border-green-500'
+                            : 'border-gray-300 dark:border-gray-600'
+                        )}>
+                          {child.completedAt && <Check className="w-2.5 h-2.5 text-white m-auto" />}
+                        </div>
+                        <button
+                          onClick={() => setActiveChildTask(child)}
+                          className={cn(
+                            'text-sm truncate text-left hover:text-blue-500 transition-colors',
+                            child.completedAt ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300'
+                          )}
+                        >
+                          {child.title}
+                        </button>
+                        <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                      </div>
+
+                      {/* Assignee */}
+                      <div className="flex-shrink-0">
+                        {child.assignee ? (
+                          child.assignee.avatar ? (
+                            <img src={child.assignee.avatar} alt="" className="w-5 h-5 rounded-full" />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-gray-400 flex items-center justify-center text-[9px] text-white font-medium">
+                              {child.assignee.displayName?.charAt(0)}
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-dashed border-gray-300 dark:border-gray-600" />
+                        )}
+                      </div>
+
+                      {/* Due date */}
+                      <div className="text-xs text-gray-400 flex-shrink-0 w-20 text-right">
+                        {child.dueDate
+                          ? child.hasDueTime
+                            ? new Date(child.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                            : child.dueDate.split('T')[0]
+                          : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add child task input */}
+              {newChildTitle !== '' && (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newChildTitle.trim() === '' ? '' : newChildTitle}
+                    onChange={(e) => setNewChildTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddChildTask();
+                      if (e.key === 'Escape') setNewChildTitle('');
+                    }}
+                    placeholder="Sub-task title..."
+                    className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleAddChildTask}
+                    disabled={addingChild || !newChildTitle.trim()}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setNewChildTitle('')}
+                    className="px-2 py-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {(task?.children?.length ?? 0) === 0 && newChildTitle === '' && (
+                <button
+                  onClick={() => setNewChildTitle(' ')}
+                  className="w-full text-left text-sm text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 py-1 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add a sub-task
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Checklist Section (simple subtasks) */}
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-gray-500">
-                Subtasks {subtasks.length > 0 && `(${completedCount}/${subtasks.length})`}
+                Checklist {subtasks.length > 0 && `(${completedCount}/${subtasks.length})`}
               </h3>
             </div>
-            
+
             {subtasks.length > 0 && (
               <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mb-3 overflow-hidden">
-                <div
-                  className="h-full bg-green-500 transition-all duration-300"
-                  style={{ width: `${(completedCount / subtasks.length) * 100}%` }}
-                />
+                <div className="h-full bg-green-500 transition-all duration-300" style={{ width: `${(completedCount / subtasks.length) * 100}%` }} />
               </div>
             )}
 
             <div className="space-y-1 mb-3">
               {subtasks.map((subtask, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg group"
-                >
+                <div key={index} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg group">
                   <button
                     onClick={() => toggleSubtask(index)}
-                    className={cn(
-                      'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0',
-                      subtask.completed
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
-                    )}
+                    className={cn('w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0', subtask.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-green-500')}
                   >
                     {subtask.completed && <Check className="w-3 h-3" />}
                   </button>
-                  <span
-                    className={cn(
-                      'flex-1 text-sm',
-                      subtask.completed
-                        ? 'text-gray-400 line-through'
-                        : 'text-gray-700 dark:text-gray-300'
-                    )}
-                  >
-                    {subtask.title}
-                  </span>
-                  <button
-                    onClick={() => removeSubtask(index)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                  >
+                  <span className={cn('flex-1 text-sm', subtask.completed ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300')}>{subtask.title}</span>
+                  <button onClick={() => removeSubtask(index)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1032,19 +1195,8 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
             </div>
 
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={newSubtask}
-                onChange={(e) => setNewSubtask(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask()}
-                placeholder="Add a subtask..."
-                className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                onClick={handleAddSubtask}
-                disabled={!newSubtask.trim()}
-                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-              >
+              <input type="text" value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask()} placeholder="Add a checklist item..." className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <button onClick={handleAddSubtask} disabled={!newSubtask.trim()} className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -1181,6 +1333,18 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate }
             </div>
           </div>
         </div>
+      )}
+      {/* Nested child task panel */}
+      {activeChildTask && (
+        <TaskPanel
+          task={activeChildTask as any}
+          columnId={activeChildTask.columnId}
+          columns={columns}
+          onClose={onClose}
+          onUpdate={() => { setActiveChildTask(null); onUpdate(); }}
+          parentTask={task ? { id: task.id, title: task.title } : null}
+          onBack={() => setActiveChildTask(null)}
+        />
       )}
     </>
   );

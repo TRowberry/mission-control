@@ -46,6 +46,15 @@ export const GET = withAnyAuth(async (req: NextRequest, actor: AuthActor) => {
             state: { select: { id: true, name: true, group: true, color: true } },
             cycle: { select: { id: true, name: true, status: true } },
             modules: { include: { module: { select: { id: true, name: true } } } },
+            children: {
+              where: { archived: false },
+              orderBy: { position: 'asc' } as const,
+              include: {
+                assignee: { select: { id: true, displayName: true, avatar: true } },
+                state: { select: { id: true, name: true, group: true, color: true } },
+                subtasks: { orderBy: { position: 'asc' } as const },
+              },
+            },
           },
         },
       },
