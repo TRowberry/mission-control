@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  LayoutGrid, 
-  Calendar, 
-  FileText, 
-  Settings, 
+import {
+  LayoutGrid,
+  Calendar,
+  FileText,
+  Settings,
   ChevronLeft,
   MoreHorizontal,
   Star,
@@ -20,12 +20,14 @@ import {
   Users,
   CalendarDays,
   TrendingUp,
-  Plus
+  Plus,
+  Table2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import KanbanBoard from '@/components/kanban/KanbanBoard';
 import ActivityPanel from '@/components/kanban/ActivityPanel';
 import ProjectCalendar from '@/components/kanban/ProjectCalendar';
+import ProjectTable from '@/components/kanban/ProjectTable';
 import TaskPanel from '@/components/kanban/TaskPanel';
 import ProjectSettingsModal from '@/components/kanban/ProjectSettingsModal';
 
@@ -61,7 +63,7 @@ interface Activity {
   user: { id: string; displayName: string; avatar: string | null };
 }
 
-type TabKey = 'overview' | 'kanban' | 'calendar';
+type TabKey = 'overview' | 'kanban' | 'table' | 'calendar';
 
 interface Tab {
   key: TabKey;
@@ -72,6 +74,7 @@ interface Tab {
 const tabs: Tab[] = [
   { key: 'overview', label: 'Overview', icon: FileText },
   { key: 'kanban', label: 'Kanban', icon: LayoutGrid },
+  { key: 'table', label: 'Table', icon: Table2 },
   { key: 'calendar', label: 'Calendar', icon: Calendar },
 ];
 
@@ -350,7 +353,11 @@ export default function ProjectPage() {
           {currentTab === 'kanban' && (
             <KanbanBoard projectId={projectId} />
           )}
-          
+
+          {currentTab === 'table' && (
+            <ProjectTable projectId={projectId} />
+          )}
+
           {currentTab === 'calendar' && (
             <ProjectCalendar projectId={projectId} onTaskClick={handleCalendarTaskClick} />
           )}
