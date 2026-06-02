@@ -19,6 +19,34 @@ function getRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
+type DueBucket = 'overdue' | 'today' | 'tomorrow' | 'this_week' | 'next_month' | 'later' | 'no_date';
+
+function getDueBucket(dueDate: Date | null, completedAt: Date | null): DueBucket {
+  if (!dueDate) return 'no_date';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const due = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0 && !completedAt) return 'overdue';
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'tomorrow';
+  if (diffDays <= 7) return 'this_week';
+  if (diffDays <= 30) return 'next_month';
+  return 'later';
+}
+
+const BUCKET_LABELS: Record<DueBucket, string> = {
+  overdue: 'Overdue',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  this_week: 'This week',
+  next_month: 'Next month',
+  later: 'Later',
+  no_date: 'No due date',
+};
+
+const BUCKET_ORDER: DueBucket[] = ['overdue', 'today', 'tomorrow', 'this_week', 'next_month', 'later', 'no_date'];
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -108,6 +136,32 @@ export default async function DashboardPage() {
     }
   });
 
+  // My Tasks — tasks assigned to the current user in this workspace
+  const assignedTasks = user ? await prisma.task.findMany({
+    where: {
+      assigneeId: user.id,
+      archived: false,
+      column: { project: { ...(workspaceId && { workspaceId }) } },
+    },
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    take: 100,
+    include: {
+      column: { include: { project: { select: { id: true, name: true, color: true } } } },
+      state: { select: { id: true, name: true, color: true } },
+      assignee: { select: { id: true, displayName: true, avatar: true } },
+    },
+  }) : [];
+
+  const myTaskCount = assignedTasks.length;
+
+  // Group by due date bucket
+  const taskGroups: Record<DueBucket, typeof assignedTasks> = {
+    overdue: [], today: [], tomorrow: [], this_week: [], next_month: [], later: [], no_date: [],
+  };
+  for (const t of assignedTasks) {
+    taskGroups[getDueBucket(t.dueDate, t.completedAt)].push(t);
+  }
+
   // Find #general channel for this workspace (for Quick Actions link)
   const generalChannel = workspaceId
     ? await prisma.channel.findFirst({
@@ -195,9 +249,9 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={<LayoutGrid className="w-5 h-5" />}
-            label="Tasks"
-            value={stats.tasks.total}
-            subtext={`${stats.tasks.projects} projects`}
+            label="My Tasks"
+            value={myTaskCount}
+            subtext={`${stats.tasks.projects} project${stats.tasks.projects !== 1 ? 's' : ''}`}
             color="primary"
           />
           <StatCard
@@ -284,58 +338,95 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* In Progress Tasks */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">In Progress</h3>
+        {/* My Tasks Table */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-lg">My Tasks</h3>
             <Link href="/kanban" className="text-sm text-primary hover:underline">
-              View all →
+              View projects →
             </Link>
           </div>
-          {myTasks.length > 0 ? (
-            <div className="space-y-3">
-              {myTasks.map((task) => (
-                <Link 
-                  key={task.id} 
-                  href={`/kanban?project=${task.projectId}&task=${task.id}`}
-                  className="block p-3 rounded-lg bg-[#36393F] hover:bg-[#3C3F45] transition-colors cursor-pointer"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{task.projectName}</p>
-                      {task.nextTask && (
-                        <p className="text-sm text-gray-400 mt-1">
-                          Next: {task.nextTask}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
-                      task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
-                      task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {task.priority}
-                    </span>
-                  </div>
-                  {task.subtaskCount > 0 && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${task.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {task.completedCount}/{task.subtaskCount}
-                      </span>
-                    </div>
-                  )}
-                </Link>
-              ))}
+
+          {myTaskCount === 0 ? (
+            <div className="card text-center py-10 text-gray-500">
+              <LayoutGrid className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p>No tasks assigned to you yet.</p>
+              <Link href="/kanban" className="text-sm text-primary hover:underline mt-2 inline-block">Open Projects →</Link>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm">No tasks in progress. Check the Kanban board to get started!</p>
+            <div className="card p-0 overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700 bg-gray-800/50">
+                    <th className="w-8 px-3 py-2" />
+                    <th className="py-2 pr-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</th>
+                    <th className="py-2 px-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-32">Project</th>
+                    <th className="py-2 px-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-28">Status</th>
+                    <th className="py-2 px-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Start</th>
+                    <th className="py-2 px-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {BUCKET_ORDER.map((bucket) => {
+                    const tasks = taskGroups[bucket];
+                    if (tasks.length === 0) return null;
+                    return (
+                      <>
+                        {/* Group header */}
+                        <tr key={`header-${bucket}`} className="border-b border-gray-700/50 bg-gray-800/30">
+                          <td />
+                          <td colSpan={5} className="py-2 px-3">
+                            <span className={`text-xs font-semibold ${bucket === 'overdue' ? 'text-red-400' : 'text-gray-400'}`}>
+                              {BUCKET_LABELS[bucket]} <span className="font-normal opacity-60">{tasks.length}</span>
+                            </span>
+                          </td>
+                        </tr>
+                        {tasks.map((task, i) => {
+                          const rowColor = task.column.project.color ?? '#5865F2';
+                          const statusColor = task.state?.color ?? '#6B7280';
+                          const statusName = task.state?.name ?? task.column.name;
+                          const dueOverdue = task.dueDate && !task.completedAt && getDueBucket(task.dueDate, task.completedAt) === 'overdue';
+                          return (
+                            <tr key={task.id} className="border-b border-gray-700/30 hover:bg-gray-700/20 group">
+                              <td className="w-8 px-3 py-2.5 text-xs text-gray-600 text-right">{i + 1}</td>
+                              <td className="py-2.5 pr-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: rowColor }} />
+                                  <Link
+                                    href={`/project/${task.column.project.id}?tab=kanban`}
+                                    className={`text-sm hover:text-blue-400 transition-colors truncate max-w-xs ${task.completedAt ? 'text-gray-500 line-through' : 'text-gray-200'}`}
+                                  >
+                                    {task.title}
+                                  </Link>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className="text-xs text-gray-400 truncate">{task.column.project.name}</span>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                                  style={{ backgroundColor: `${statusColor}25`, color: statusColor }}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+                                  {statusName}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-gray-400">
+                                {task.startDate ? task.startDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : <span className="text-gray-600">—</span>}
+                              </td>
+                              <td className={`py-2.5 px-3 text-xs font-medium ${dueOverdue ? 'text-red-400' : 'text-gray-400'}`}>
+                                {task.dueDate ? task.dueDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : <span className="text-gray-600">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
