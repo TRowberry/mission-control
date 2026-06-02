@@ -28,6 +28,18 @@ interface Assignee {
   avatar: string | null;
 }
 
+interface ChildTask {
+  id: string;
+  title: string;
+  columnId: string;
+  priority: string;
+  dueDate: string | null;
+  hasDueTime?: boolean;
+  completedAt: string | null;
+  assignee: Assignee | null;
+  state?: { id: string; name: string; group: string; color: string } | null;
+}
+
 interface Task {
   id: string;
   title: string;
@@ -35,11 +47,14 @@ interface Task {
   priority: string;
   position: number;
   dueDate: string | null;
+  hasDueTime?: boolean;
   columnId: string;
+  parentId?: string | null;
   subtasks: Subtask[];
   tags: Tag[];
   assignee: Assignee | null;
   estimate: number | null;
+  children?: ChildTask[];
 }
 
 interface Column {
@@ -423,7 +438,7 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                       snapshot.isDraggingOver && 'bg-white/5'
                     )}
                   >
-                    {column.tasks.map((task, index) => (
+                    {column.tasks.filter(t => !t.parentId).map((task, index) => (
                       <Draggable key={task.id} draggableId={task.id} index={index}>
                         {(provided, snapshot) => (
                           <div
@@ -439,6 +454,10 @@ export default function KanbanBoard({ projectId, highlightedTaskId }: KanbanBoar
                                 setSelectedColumnId(column.id);
                               }}
                               onDelete={() => handleDeleteTask(task.id)}
+                              onChildClick={(child) => {
+                                setSelectedTask(child as any);
+                                setSelectedColumnId(child.columnId);
+                              }}
                             />
                           </div>
                         )}
