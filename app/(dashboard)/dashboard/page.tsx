@@ -108,6 +108,14 @@ export default async function DashboardPage() {
     }
   });
 
+  // Find #general channel for this workspace (for Quick Actions link)
+  const generalChannel = workspaceId
+    ? await prisma.channel.findFirst({
+        where: { workspaceId, slug: 'general' },
+        select: { id: true },
+      })
+    : null;
+
   const recentActivity = recentMessages.map(msg => {
     const hasMention = user?.username && msg.content.toLowerCase().includes(`@${user.username.toLowerCase()}`);
     return {
@@ -223,15 +231,18 @@ export default async function DashboardPage() {
             <div className="space-y-2">
               <Link href="/kanban" className="btn btn-secondary w-full justify-start gap-2">
                 <LayoutGrid className="w-4 h-4" />
-                Open Kanban Board
+                Open Projects
               </Link>
-              <Link href="/chat/channel-general" className="btn btn-secondary w-full justify-start gap-2">
+              <Link
+                href={generalChannel ? `/chat/${generalChannel.id}` : '/chat'}
+                className="btn btn-secondary w-full justify-start gap-2"
+              >
                 <MessageSquare className="w-4 h-4" />
                 Go to #general
               </Link>
-              <Link href="/chat/channel-reports" className="btn btn-secondary w-full justify-start gap-2">
+              <Link href="/notifications" className="btn btn-secondary w-full justify-start gap-2">
                 <Bell className="w-4 h-4" />
-                View Reports
+                View Notifications
               </Link>
             </div>
           </div>
