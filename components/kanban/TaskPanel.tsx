@@ -199,6 +199,7 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, 
   const [addingChild, setAddingChild] = useState(false);
   
   const panelRef = useRef<HTMLDivElement>(null);
+  const nestedPanelRef = useRef<HTMLDivElement>(null);
   const isNew = !task;
 
   // Animate in on mount
@@ -322,6 +323,10 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, 
       if (panelRef.current && !panelRef.current.contains(target)) {
         if (modalRef.current && modalRef.current.contains(target)) {
           // Click is inside the fullscreen modal, don't close
+          return;
+        }
+        if (nestedPanelRef.current && nestedPanelRef.current.contains(target)) {
+          // Click is inside a nested child task panel, don't close parent
           return;
         }
         handleClose();
@@ -1334,8 +1339,9 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, 
           </div>
         </div>
       )}
-      {/* Nested child task panel */}
+      {/* Nested child task panel — wrapped in ref so parent's click-outside handler ignores it */}
       {activeChildTask && (
+        <div ref={nestedPanelRef}>
         <TaskPanel
           task={activeChildTask as any}
           columnId={activeChildTask.columnId}
@@ -1345,6 +1351,7 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, 
           parentTask={task ? { id: task.id, title: task.title } : null}
           onBack={() => setActiveChildTask(null)}
         />
+        </div>
       )}
     </>
   );
