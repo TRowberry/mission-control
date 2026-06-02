@@ -210,7 +210,12 @@ export default function TaskPanel({ task, columnId, columns, onClose, onUpdate, 
 
   // Fetch users for assignee dropdown and get current user
   useEffect(() => {
-    fetch('/api/users')
+    const workspaceId = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('mc-workspace='))
+      ?.split('=')[1];
+    const usersUrl = workspaceId ? `/api/users?workspaceId=${workspaceId}&limit=50` : '/api/users?limit=50';
+    fetch(usersUrl)
       .then(res => res.json())
       .then(data => setUsers(data))
       .catch(() => setUsers([]));

@@ -54,7 +54,9 @@ export function ReviewerAssignment({
   // Fetch available users when opening add dialog
   useEffect(() => {
     if (isAdding) {
-      fetch('/api/users')
+      const workspaceId = document.cookie.split('; ').find(r => r.startsWith('mc-workspace='))?.split('=')[1];
+      const url = workspaceId ? `/api/users?workspaceId=${workspaceId}&limit=50` : '/api/users?limit=50';
+      fetch(url)
         .then(res => res.json())
         .then(data => setUsers(Array.isArray(data) ? data : []))
         .catch(() => setUsers([]));

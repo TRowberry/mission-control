@@ -203,7 +203,7 @@ export default function TaskModal({ task, columnId, columns, projectId, onClose,
           fetch(`/api/kanban/states?projectId=${projectId}`),
           fetch(`/api/kanban/cycles?projectId=${projectId}`),
           fetch(`/api/kanban/modules?projectId=${projectId}`),
-          fetch(`/api/users?limit=50`),
+          fetch(`/api/users?workspaceId=${encodeURIComponent(document.cookie.split('; ').find(r => r.startsWith('mc-workspace='))?.split('=')[1] ?? '')}&limit=50`),
         ]);
 
         if (typesRes.ok) setTaskTypes(await typesRes.json());
