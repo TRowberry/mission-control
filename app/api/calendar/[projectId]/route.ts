@@ -9,15 +9,18 @@ const PRIORITY_MAP: Record<string, number> = {
   low: 9,
 };
 
-/** Format a date string (ISO or YYYY-MM-DD) as a bare iCal DATE: YYYYMMDD */
-function icsDate(dateStr: string): string {
-  return dateStr.split('T')[0].replace(/-/g, '');
+/** Format a Date object or ISO string as a bare iCal DATE: YYYYMMDD */
+function icsDate(date: Date | string): string {
+  const iso = date instanceof Date ? date.toISOString() : date;
+  return iso.split('T')[0].replace(/-/g, '');
 }
 
-/** Add one day to a YYYY-MM-DD string (for iCal exclusive DTEND) */
-function nextDay(dateStr: string): string {
-  const d = new Date(dateStr.split('T')[0] + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + 1);
+/** Add one day (for iCal exclusive DTEND) */
+function nextDay(date: Date | string): string {
+  const d = date instanceof Date
+    ? new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1))
+    : new Date(date.split('T')[0] + 'T00:00:00Z');
+  if (!(date instanceof Date)) d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().split('T')[0].replace(/-/g, '');
 }
 
