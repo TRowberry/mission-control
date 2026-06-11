@@ -114,7 +114,9 @@ export async function GET(
   // Collect all qualifying tasks
   const tasks = project.columns.flatMap((col: any) => col.tasks);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chatterbox.rowberry.com';
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  const host = req.headers.get('host') ?? 'chatterbox.rowberry.com';
+  const appUrl = `${proto}://${host}`;
   const stamp = nowStamp();
 
   // Build VEVENT blocks
