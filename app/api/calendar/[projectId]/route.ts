@@ -43,6 +43,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  try {
   const { projectId } = await params;
   const token = req.nextUrl.searchParams.get('token');
 
@@ -176,4 +177,9 @@ export async function GET(
       'Cache-Control': 'no-cache, no-store, must-revalidate',
     },
   });
+  } catch (err: any) {
+    const msg = err?.message ?? String(err);
+    console.error('[calendar] Error:', msg, err?.stack);
+    return new NextResponse(`ERROR: ${msg}`, { status: 500 });
+  }
 }
