@@ -38,9 +38,9 @@ function icsEscape(str: string): string {
 // GET /api/calendar/[projectId]?token=CALENDAR_TOKEN
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = params;
+  const { projectId } = await params;
   const token = req.nextUrl.searchParams.get('token');
 
   if (!token) {
